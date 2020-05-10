@@ -1,0 +1,6503 @@
+; Disassembly and reassembly of the IC24-SK1.rom file for the BT Merlin M2105
+; terminal.
+
+.alias OSBYTE $fff4
+.alias OSASCI $ffe3
+.alias OSNEWL $ffe7
+
+; Note: Uses these addresses in pages &FC and &FD:
+;
+; $fc50: 50 51 52 53 54 55 56 57 58 59 5a 5b    5d 5e 5f
+; $fc60: 60 61 62 63                         6c 6d 6e
+; $fc70: 70 71 72 73             78 79    7b 7c 7d 7e
+; $fcf0:                                              ff
+; $fd00: 00 01 02 03 04 05 06
+; $fd10:                   16 17 18 19
+; $fde0:                            e9 ea eb ec ed    ef
+; $fdf0: f0 f1
+
+.org $8000
+
+ic24_start:
+
+start:
+language_entry:     .byte 0, 0, 0
+service_entry:      jmp service
+rom_type:           .byte $82             ; service ROM, 6502 code
+copyright_offset:   .byte [copyright - start]
+version:            .byte $2f
+title_string:       .byte "M2105 System Software ", 0
+version_string:     .byte "0.39a"
+copyright: .byte 0, "(C)1986 Acorn", 0
+
+_8034: .byte $56
+
+service:
+    php
+    cmp #$13                ; Handle services < $13
+    bcs service_exit
+        jsr service_handle   
+
+service_exit:
+    plp
+    rts
+
+service_handle:
+    asl                 ; Shift the reason code left to create an offset into a
+    tax                         ; routine look-up table (X = A * 2).
+    lda [service_table + 1],x   ; Look up the high byte (HH) from the table
+    pha                         ; and stack it.
+    lda service_table,x ; Look up the low byte (LL)
+    pha                 ; and stack it.
+    txa
+    lsr                 ; Restore the original A.
+    ldx $f4             ; Load the current ROM number into X.
+    rts                 ; Return via the routine at $HHLL+1.
+
+service_table:
+_804e: .byte $73    ; Routine look-up table for $00-$12
+_804f: .byte $80    ; This 
+.byte $74,$80, $75,$80, $76,$80, $77,$80
+.byte <[service_05 - 1],>[service_05 - 1]
+.byte <[service_06 - 1],>[service_06 - 1]
+.byte <[service_07 - 1],>[service_07 - 1]
+.byte <[service_08 - 1],>[service_08 - 1]
+.byte <[service_09 - 1],>[service_09 - 1]
+.byte <[service_0a - 1],>[service_0a - 1]
+.byte <[service_0b - 1],>[service_0b - 1]
+.byte <[service_0c - 1],>[service_0c - 1]
+.byte $73,$80
+.byte $73,$80
+.byte <[service_0f - 1],>[service_0f - 1]
+.byte $73,$80
+.byte $73,$80
+.byte <[service_12 - 1],>[service_12 - 1]
+
+_8074:
+    rts
+_8075:
+    rts
+_8076:
+    rts
+_8077:
+    rts
+_8078:
+    rts
+
+; Service call &05 (unknown interrupt) handler (EAUG, p156)
+
+service_05:
+_8079:
+    pha
+    lda #$08
+    and $fc6e
+    bit $fc6d
+        bne _80a2
+
+    lda #$08
+    and $fc55
+    bit $fc55
+        beq _8091
+
+    jmp _80fe
+
+_8091:
+    lda #$01
+    and $fc6e
+    bit $fc6d
+    beq _809e
+    jmp _8b8c
+
+_809e:
+    pla
+    jmp ($3f00)
+
+_80a2:
+    lda #$08
+
+    sta $fc6d
+    lda $3f11
+        beq _80d3
+
+    lda #$02
+    bit $fc70
+    bne _80be
+    lda $fc70
+    ora #$02
+    sta $fc70
+    jmp _8113
+
+_80be:
+    dec $3f0b
+        bne _8113
+
+    lda #$80
+    sta $fc57
+    lda #$0d
+    sta $fc56
+    lda $fc5e
+    jmp _8113
+
+_80d3:
+    dec $3f0b
+        bne _8113
+    inc $3f0e
+    dec $3f0f
+        beq _80e6
+    jsr _88d0
+    jmp _8113
+
+_80e6:
+    lda #$08
+    sta $fc6e
+    lda $3f02
+    and #$f7
+    sta $fc55
+    sta $3f02
+    lda #$00
+    sta $3f10
+    jmp _8113
+
+_80fe:
+    bit $fc5f
+    lda $fc70
+    and #$fd
+    sta $fc70
+    lda #$00
+    sta $3f11
+    lda #$09
+    sta $3f0b
+
+_8113:
+    pla
+    lda #$00
+    rts
+
+; Service call &06 (BRK) handler (EAUG, p156)
+
+service_06:
+_8117:
+    rts
+
+; Service call &07 (unrecognised OSBYTE call) handler (EAUG, p157)
+
+service_07:
+_8118:
+    pha
+    tya
+    pha
+    jsr find_osbyte
+    pla
+    tay
+    ldx $f4
+    pla
+        bcs service_07_exit
+    lda #$00
+service_07_exit:
+    rts
+find_osbyte:
+    ldx #$00
+find_osbyte_loop:
+    lda osbyte_table,x  ; Load a value from the table.
+    cmp $ef             ; Compare the value to the value of A passed to OSBYTE.
+    beq run_osbyte      ; If equal, load the routine address - 1.
+    cmp #$ff            ; If the termination value is reached
+    beq service_07_fail ; jump to the error exit.
+    inx
+    inx
+    inx
+    jmp find_osbyte_loop
+
+run_osbyte:         ; $813b:
+    lda [osbyte_table + 2],x    ; Load the high byte (HH).
+    pha
+    lda [osbyte_table + 1],x    ; Load the low byte (LL).
+    pha
+    rts             ; Return via $HHLL + 1.
+service_07_fail:
+    sec
+    rts             ; Return with C set to indicate failure.
+
+osbyte_table:
+_8146: .byte $07
+_8147: .byte <[set_recv_baud_rate - 1]  ; $6d
+_8148: .byte >[set_recv_baud_rate - 1]  ; $82
+.byte $08
+.byte <[set_send_baud_rate - 1]         ; $97
+.byte >[set_send_baud_rate - 1]         ; $82
+.byte $40
+.byte <[osbyte_40 - 1]                  ; $cc
+.byte >[osbyte_40 - 1]                  ; $82
+.byte $41
+.byte <[osbyte_41 - 1]                  ; $d3
+.byte >[osbyte_41 - 1]                  ; $82
+.byte $42
+.byte <[osbyte_42 - 1]                  ; $e0
+.byte >[osbyte_42 - 1]                  ; $82
+.byte $43
+.byte <[osbyte_43 - 1]                  ; $06
+.byte >[osbyte_43 - 1]                  ; $83
+.byte $44
+.byte <[osbyte_44 - 1]                  ; $0f
+.byte >[osbyte_44 - 1]                  ; $83
+.byte $45
+.byte <[osbyte_45 - 1]                  ; $18
+.byte >[osbyte_45 - 1]                  ; $83
+.byte $46
+.byte <[osbyte_46 - 1]                  ; $36
+.byte >[osbyte_46 - 1]                  ; $83
+.byte $47
+.byte <[osbyte_47 - 1]                  ; $40
+.byte >[osbyte_47 - 1]                  ; $83
+.byte $48
+.byte <[osbyte_48 - 1]                  ; $46
+.byte >[osbyte_48 - 1]                  ; $83
+.byte $ff                               ; sentinel
+
+; Service call &08 (unrecognised OSWORD call) handler (EAUG, p157)
+
+service_08:
+_8168:
+    pha
+    lda $ef             ; Load the A passed to OSWORD.
+    cmp #$81
+    beq _8181           ; Handle OSWORD &81.
+    cmp #$50
+    bne _8177           ; Handle all except &50.
+    pla
+    jmp _824e           ; Jump to the exit.
+_8177:
+    cmp #$07            ; Only handle &07.
+    bne service_08_exit
+    pla
+    jmp _8a75
+service_08_exit:
+    pla
+    rts
+_8181:
+    tya
+    pha
+    ldy #$00
+    lda ($f0),y
+    sec
+    sbc #$05
+    sta $3f12
+    beq _819c
+    ldy #$05
+    lda ($f0),y
+    sta $3f13
+    iny
+    lda ($f0),y
+    sta $3f14
+_819c:
+    ldy #$00
+    sty $3f15
+    iny
+    lda #$05
+    sta ($f0),y
+    iny
+    lda ($f0),y
+    bmi _81af
+    cmp #$37
+    bcc _81b5
+_81af:
+    pla
+    tay
+    ldx $f4
+    pla
+    rts
+_81b5:
+    jsr find_osword
+    lda $3f15
+    beq _81cd
+    ldx #$00
+    ldy #$03
+_81c1:
+    lda $3f16,x
+    sta ($f0),y
+    inx
+    iny
+    cpx $3f15
+    bcc _81c1
+_81cd:
+    pla
+    tay
+    pla
+    lda #$00
+    ldx $f4
+    rts
+find_osword:
+    asl
+    tax
+    lda [osword_table + 1],x    ; Load HH from the table.
+    pha
+    lda osword_table,x          ; Load LL from the table.
+    pha
+    rts                         ; Return via $HHLL + 1.
+
+osword_table:
+_81e0: .byte <[osword_81_00 - 1]    ; $4c
+_81e1: .byte >[osword_81_00 - 1]    ; $83
+.byte <[osword_81_01 - 1]           ; $52
+.byte >[osword_81_01 - 1]           ; $83
+.byte <[osword_81_02 - 1]           ; $58
+.byte >[osword_81_02 - 1]           ; $83
+.byte <[osword_81_03 - 1]           ; $5e
+.byte >[osword_81_03 - 1]           ; $83
+.byte <[osword_81_04 - 1]           ; $64
+.byte >[osword_81_04 - 1]           ; $83
+.byte <[osword_81_05 - 1]           ; $6a
+.byte >[osword_81_05 - 1]           ; $83
+.byte <[osword_81_06 - 1]           ; $70
+.byte >[osword_81_06 - 1]           ; $83
+.byte <[osword_81_07 - 1]           ; $76
+.byte >[osword_81_07 - 1]           ; $83
+.byte <[osword_81_08 - 1]           ; $80
+.byte >[osword_81_08 - 1]           ; $83
+.byte <[osword_81_09 - 1]           ; $92
+.byte >[osword_81_09 - 1]           ; $83
+.byte <[osword_81_0a - 1]           ; $f2
+.byte >[osword_81_0a - 1]           ; $83
+.byte <[osword_81_0b - 1]           ; $fc
+.byte >[osword_81_0b - 1]           ; $83
+.byte <[osword_81_0c - 1]           ; $10
+.byte >[osword_81_0c - 1]           ; $84
+.byte <[osword_81_0d - 1]           ; $51
+.byte >[osword_81_0d - 1]           ; $84
+.byte <[osword_81_0e - 1]           ; $62
+.byte >[osword_81_0e - 1]           ; $84
+.byte <[osword_81_0f - 1]           ; $c0
+.byte >[osword_81_0f - 1]           ; $84
+.byte <[osword_81_10 - 1]           ; $eb
+.byte >[osword_81_10 - 1]           ; $84
+.byte <[osword_81_11 - 1]           ; $f1
+.byte >[osword_81_11 - 1]           ; $84
+.byte <[osword_81_12 - 1]           ; $f7
+.byte >[osword_81_12 - 1]           ; $84
+.byte <[osword_81_13 - 1]           ; $fd
+.byte >[osword_81_13 - 1]           ; $84
+.byte <[osword_81_14 - 1]           ; $03
+.byte >[osword_81_14 - 1]           ; $85
+.byte <[osword_81_15 - 1]           ; $09
+.byte >[osword_81_15 - 1]           ; $85
+.byte <[osword_81_16 - 1]           ; $0f
+.byte >[osword_81_16 - 1]           ; $85
+.byte <[osword_81_17 - 1]           ; $15
+.byte >[osword_81_17 - 1]           ; $85
+.byte <[osword_81_18 - 1]           ; $28
+.byte >[osword_81_18 - 1]           ; $85
+.byte <[osword_81_19 - 1]           ; $42
+.byte >[osword_81_19 - 1]           ; $85
+.byte <[osword_81_1a - 1]           ; $4c
+.byte >[osword_81_1a - 1]           ; $85
+.byte <[osword_81_1b - 1]           ; $53
+.byte >[osword_81_1b - 1]           ; $85
+.byte <[osword_81_1c - 1]           ; $d1
+.byte >[osword_81_1c - 1]           ; $85
+.byte <[osword_81_1d - 1]           ; $1d
+.byte >[osword_81_1d - 1]           ; $86
+.byte <[osword_81_1e - 1]           ; $2a
+.byte >[osword_81_1e - 1]           ; $86
+.byte <[osword_81_1f - 1]           ; $51
+.byte >[osword_81_1f - 1]           ; $86
+.byte <[osword_81_20 - 1]           ; $81
+.byte >[osword_81_20 - 1]           ; $86
+.byte <[osword_81_21 - 1]           ; $ac
+.byte >[osword_81_21 - 1]           ; $86
+.byte <[osword_81_22 - 1]           ; $b3
+.byte >[osword_81_22 - 1]           ; $86
+.byte <[osword_81_23 - 1]           ; $bf
+.byte >[osword_81_23 - 1]           ; $86
+.byte <[osword_81_24 - 1]           ; $02
+.byte >[osword_81_24 - 1]           ; $87
+.byte <[osword_81_25 - 1]           ; $67
+.byte >[osword_81_25 - 1]           ; $87
+.byte <[osword_81_26 - 1]           ; $76
+.byte >[osword_81_26 - 1]           ; $88
+.byte <[osword_81_27 - 1]           ; $80
+.byte >[osword_81_27 - 1]           ; $88
+.byte <[osword_81_28 - 1]           ; $8b
+.byte >[osword_81_28 - 1]           ; $88
+.byte <[osword_81_29 - 1]           ; $99
+.byte >[osword_81_29 - 1]           ; $88
+.byte <[osword_81_2a - 1]           ; $0d
+.byte >[osword_81_2a - 1]           ; $89
+.byte <[osword_81_2b - 1]           ; $57
+.byte >[osword_81_2b - 1]           ; $89
+.byte <[osword_81_2c - 1]           ; $e1
+.byte >[osword_81_2c - 1]           ; $89
+.byte <[osword_81_2d - 1]           ; $f3
+.byte >[osword_81_2d - 1]           ; $89
+.byte <[osword_81_2e - 1]           ; $06
+.byte >[osword_81_2e - 1]           ; $8a
+.byte <[osword_81_2f - 1]           ; $25
+.byte >[osword_81_2f - 1]           ; $8a
+.byte <[osword_81_30 - 1]           ; $34
+.byte >[osword_81_30 - 1]           ; $8a
+.byte <[osword_81_31 - 1]           ; $3a
+.byte >[osword_81_31 - 1]           ; $8a
+.byte <[osword_81_32 - 1]           ; $44
+.byte >[osword_81_32 - 1]           ; $8a
+.byte <[osword_81_33 - 1]           ; $4e
+.byte >[osword_81_33 - 1]           ; $8a
+.byte <[osword_81_34 - 1]           ; $58
+.byte >[osword_81_34 - 1]           ; $8a
+.byte <[osword_81_35 - 1]           ; $61
+.byte >[osword_81_35 - 1]           ; $8a
+.byte <[osword_81_36 - 1]           ; $6a
+.byte >[osword_81_36 - 1]           ; $8a
+
+_824e:
+    rts
+
+; Service call &09 (*HELP) handler (EAUG, p157)
+
+service_09:
+_824f:
+    pha
+    jsr OSNEWL              ; OSNEWL
+    ldx #$00
+_8255:
+    lda title_string,x
+    cmp #$28                ; If the "(" of the copyright string is found
+    beq _8262               ; then jump to the exit.
+    jsr OSASCI              ; OSASCI
+    inx
+    bne _8255
+_8262:
+    jsr OSNEWL              ; OSNEWL
+    pla
+    ldx $f4
+    rts
+
+; Service call &0A (claim absolute workspace) handler (EAUG, p158)
+
+service_0a:
+_8269:
+    rts
+
+; Service call &0B (NMI released) handler (EAUG, p159)
+
+service_0b:
+_826a:
+    rts
+
+; Service call &0C (NMI claim) handler (EAUG, p159)
+
+service_0c:
+_826b:
+    rts
+
+; Service call &0F (vectors claimed) handler (EAUG, p160)
+
+service_0f:
+_826c:
+    rts
+
+; Service call &12 (initialise filing system) handler (EAUG, p161)
+
+service_12:
+_826d:
+    rts
+
+; OSBYTE routines
+
+; OSBYTE 7
+set_recv_baud_rate:
+_826e:
+    ldx $3f07
+    lda $f0
+    stx $f0
+    cmp #$0c
+    bcc _827b
+    lda #$00
+_827b:
+    sta $3f07
+    jsr _82ba
+    asl $80
+    asl $80
+    asl $80
+    asl $80
+    lda $3f04
+    and #$0f
+    ora $80
+    sta $fc51
+    sta $3f04
+    clc
+    rts
+
+; OSBYTE 8
+set_send_baud_rate:
+_8298:
+    ldx $3f08
+    lda $f0
+    stx $f0
+    cmp #$0c
+    bcc _82a5
+    lda #$00
+_82a5:
+    sta $3f08
+    jsr _82ba
+    lda $3f04
+    and #$f0
+    ora $80
+    sta $fc51
+    sta $3f04
+    clc
+    rts
+_82ba:
+    tay
+    lda _82c1,y
+    sta $80
+    rts
+
+_82c1: .byte $06,$00,$03,$04,$06,$08,$09,$0b,$0c,$01,$05,$0a
+
+; OSBYTE &40
+
+osbyte_40:
+_82cd:
+    ldx $fc5d
+    stx $f0
+    clc
+    rts
+
+; OSBYTE &41
+
+osbyte_41:
+_82d4:
+    ldx $ee
+    lda $f0
+    stx $f0
+    sta $fcff
+    sta $ee
+    clc
+    rts
+
+; OSBYTE &42
+
+osbyte_42:
+
+_82e1:
+    lda $fc70
+    pha
+    and #$40
+    beq _82eb
+    lda #$ff
+_82eb:
+    eor #$ff
+    tax
+    lda $f0
+    stx $f0
+    and #$01
+    bne _82ff
+    pla
+    ora #$40
+    sta $fc70
+    jmp _8305
+_82ff:
+    pla
+    and #$bf
+    sta $fc70
+_8305:
+    clc
+    rts
+
+; OSBYTE &43
+
+osbyte_43:
+_8307:
+    lda $f0
+    jsr _8c33
+    sta $f0
+    clc
+    rts
+
+; OSBYTE &44
+
+osbyte_44:
+_8310:
+    lda $f0
+    jsr _8bfa
+    sta $f0
+    clc
+    rts
+
+; OSBYTE &45
+
+osbyte_45:
+_8319:
+    jsr _8768
+    lda $3f16
+    beq _8335
+    jsr osbyte_47  ; $8341
+    jsr _8d22
+
+_8327: .byte "Bad reset", 13
+_8331:
+    nop
+    jsr _8347       ; ### This looks like an address stored in a look-up table.
+_8335:
+    clc
+    rts
+
+; OSBYTE &46
+
+osbyte_46:
+_8337:
+    lda #$ff
+    sta $3f13
+    jsr _890e
+    clc
+    rts
+
+; OSBYTE &47
+
+osbyte_47:
+_8341:
+    lda #$ff
+    sta $84
+    clc
+_8346:
+    rts
+
+; OSBYTE &48
+
+osbyte_48:
+_8347:
+    lda #$00
+    sta $84
+    clc
+    rts
+
+; OSWORD 
+
+osword_81_00:
+_834d:
+    lda #$04
+    sta $fc52
+    rts
+
+osword_81_01:
+_8353:
+    lda #$08
+    sta $fc52
+    rts
+
+osword_81_02:
+_8359:
+    lda #$01
+    sta $fc52
+    rts
+
+osword_81_03:
+_835f:
+    lda #$02
+    sta $fc52
+    rts
+
+osword_81_04:
+_8365:
+    lda #$30
+    sta $fc52
+    rts
+
+osword_81_05:
+_836b:
+    lda #$20
+    sta $fc52
+    rts
+
+osword_81_06:
+_8371:
+    lda #$40
+    sta $fc52
+    rts
+
+osword_81_07:
+_8377:
+    lda $fc5d
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_08:
+_8381:
+    lda $3f13
+    and #$85
+    bpl _838f
+    and #$05
+    sta $fc5f
+    bpl _8392
+_838f:
+    sta $fc5e
+_8392:
+    rts
+
+osword_81_09:
+_8393:
+    lda $f0
+    pha
+    lda $f1
+    pha
+    jsr _83f3
+    lda $3f16
+    and #$01
+    bne _83a9
+    sta $3f17
+    jmp _83e6
+_83a9:
+    lda $fc53
+    sta $3f17
+    lda #$f0
+    bit $3f16
+    beq _83e6
+    lda #$0d
+    ldx #$07
+    jsr OSBYTE
+    txa
+    beq _83e6
+    lda #$0e
+    ldx #$07
+    jsr OSBYTE
+    lda $3f15
+    pha
+    ldx $3f16
+    txa
+    pha
+    ldy $3f17
+    tya
+    pha
+    lda #$07
+    jsr _83f0
+    pla
+    sta $3f17
+    pla
+    sta $3f16
+    pla
+    sta $3f15
+_83e6:
+    inc $3f15
+    pla
+    sta $f1
+    pla
+    sta $f0
+    rts
+_83f0:
+    jmp ($0220)
+
+osword_81_0a:
+_83f3:
+    lda $fc51
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_0b:
+_83fd:
+    lda $3f13
+    sta $fc53
+    lda $3f06
+    beq _8410
+    lda #$01
+    sta $3f13
+    jsr _8381
+_8410:
+    rts
+
+
+osword_81_0c:
+_8411:
+    lda $3f13
+    tax
+    and #$01
+    sta $80
+    txa
+    and #$06
+    beq _8446
+    tax
+    lda #$02
+    ora $80
+    sta $80
+    jsr _8cea
+    txa
+    cmp #$04
+    beq _843b
+    lda $fc50
+    and #$bf
+    jsr _8cea
+    sta $fc50
+    jmp _8446
+_843b:
+    lda $fc50
+    ora #$40
+    jsr _8cea
+    sta $fc50
+_8446:
+    lda $3f02
+    ora $80
+    sta $fc55
+    sta $3f02
+    rts
+
+osword_81_0d:
+_8452:
+    lda $3f13
+    and #$03
+    eor #$ff
+    and $3f02
+    sta $fc55
+    sta $3f02
+    rts
+
+osword_81_0e:
+_8463:
+    jsr _8a3b
+    jsr _8cea
+    lda $fc50
+    and #$e0
+    sta $80
+    lda $fc50
+    and #$f0
+    sta $81
+    lda $3f13
+    sta $3f05
+    jsr _848e
+    jsr _8cea
+    lda $80
+    sta $fc50
+    lda $81
+    sta $fc50
+    rts
+_848e:
+    lsr
+    lsr
+    tay
+    and #$03
+    tax
+    lda _84b5,x
+    ora $80
+    sta $80
+    tya
+    lsr
+    lsr
+    tay
+    and #$03
+    tax
+    lda _84b9,x
+    ora $81
+    sta $81
+    tya
+    lsr
+    lsr
+    tax
+    lda _84bd,x
+    ora $80
+    sta $80
+    rts
+_84b5:
+.byte $10,$04,$00,$10
+_84b9:
+.byte $07,$07,$08,$0f
+_84bd:
+.byte $03,$01,$02,$03
+
+osword_81_0f:
+_84c1:
+    lda $3f06
+    sta $3f16
+    inc $3f15
+    jsr _8cea
+    lda $fc50
+    lda $3f13
+    sta $3f06
+    bne _84e3
+    lda $fc50
+    and #$cf
+    sta $fc50
+    jmp _84eb
+_84e3:
+    lda $fc50
+    ora #$30
+    sta $fc50
+_84eb:
+    rts
+
+osword_81_10:
+_84ec:
+    lda #$04
+    sta $fc5a
+    rts
+
+osword_81_11:
+_84f2:
+    lda #$08
+    sta $fc5a
+    rts
+
+osword_81_12:
+_84f8:
+    lda #$01
+    sta $fc5a
+    rts
+
+osword_81_13:
+_84fe:
+    lda #$02
+    sta $fc5a
+    rts
+
+osword_81_14:
+_8504:
+    lda #$30
+    sta $fc5a
+    rts
+
+osword_81_15:
+_850a:
+    lda #$20
+    sta $fc5a
+    rts
+
+osword_81_16:
+_8510:
+    lda #$40
+    sta $fc5a
+    rts
+
+osword_81_17:
+_8516:
+    lda $3f13
+    and #$82
+    bpl _8525
+    and #$02
+    sta $fc5f
+    jmp _8528
+_8525:
+    sta $fc5e
+_8528:
+    rts
+
+osword_81_18:
+    jsr _8543
+    lda $3f16
+    and #$01
+    bne _8539
+    sta $3f17
+    jmp _853f
+_8539:
+    lda $fc5b
+    sta $3f17
+_853f:
+    inc $3f15
+    rts
+
+osword_81_19:
+_8543:
+    lda $fc59
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_1a:
+    lda $3f13
+    sta $fc5b
+    rts
+
+osword_81_1b:
+    lda #$00
+    sta $80
+    lda #$01
+    bit $3f13
+    beq _8563
+    lda #$10
+    sta $80
+_8563:
+    lda $3f13
+    and #$06
+    beq _8592
+    tax
+    lda #$20
+    ora $80
+    sta $80
+    jsr _8cf2
+    txa
+    cmp #$04
+    beq _8587
+    lda $fc58
+    and #$bf
+    jsr _8cf2
+    sta $fc58
+    jmp _8592
+_8587:
+    lda $fc58
+    ora #$40
+    jsr _8cf2
+    sta $fc58
+_8592:
+    lda #$08
+    bit $3f13
+    beq _85a7
+    lda #$08
+    jsr _85c8
+    bit $fc54
+    lda $80
+    ora #$80
+    sta $80
+_85a7:
+    lda #$10
+    bit $3f13
+    beq _85bc
+    lda #$04
+    jsr _85c8
+    bit $fc54
+    lda $80
+    ora #$80
+    sta $80
+_85bc:
+    lda $3f02
+    ora $80
+    sta $fc55
+    sta $3f02
+    rts
+
+_85c8:
+    ora $3f03
+    sta $fc54
+    sta $3f03
+    rts
+
+osword_81_1c:
+_85d2:
+    lda $3f13
+    asl
+    asl
+    asl
+    asl
+    sta $80
+    and #$30
+    eor #$ff
+    and $3f02
+    sta $fc55
+    sta $3f02
+    bit $80
+    bvc _8609
+    bpl _8601
+    lda #$7f
+    and $3f02
+    sta $fc55
+    sta $3f02
+    lda #$f3
+    jsr _8614
+    jmp _8610
+_8601:
+    lda #$f7
+    jsr _8614
+    jmp _8610
+_8609:
+    bpl _8613
+    lda #$fb
+    jsr _8614
+_8610:
+    bit $fc54
+_8613:
+    rts
+
+_8614:
+    and $3f03
+    sta $fc54
+    sta $3f03
+    rts
+
+osword_81_1d:
+    lda $3f13
+    sta $fc78
+    lda $3f14
+    sta $fc79
+    rts
+
+osword_81_1e:
+    lda $fc78
+    ldx $fc79
+    sta $3f16
+    stx $3f17
+    lda $fc78
+    beq _864c
+    ldx $fc79
+    lda $3f16
+    bne _864c
+    cpx $3f17
+    bne _864c
+    inc $3f17
+_864c:
+    lda #$02
+    sta $3f15
+    rts
+
+osword_81_1f:
+_8652:
+    jsr _8a45
+    lda $3f13
+    cmp #$06
+    bcs _8675
+    sta $3f0a
+    asl
+    tax
+    lda _8676,x
+    sta $fc5f
+    eor #$ff
+    and #$78
+    sta $fc5e
+    inx
+    lda _8676,x
+    sta $fc59
+_8675:
+    rts
+
+_8676:
+.byte $18,$66,$50,$06,$30,$60,$18,$66,$00,$44,$08,$44
+
+osword_81_20:
+_8682:
+    jsr _8a4f
+    jsr _8cf2
+    lda $fc58
+    and #$e0
+    sta $80
+    lda $fc58
+    and #$f0
+    sta $81
+    lda $3f13
+    sta $3f09
+    jsr _848e
+    jsr _8cf2
+    lda $80
+    sta $fc58
+    lda $81
+    sta $fc58
+    rts
+
+osword_81_21:
+    lda $3f13
+    sta $fc71
+    rts
+
+osword_81_22:
+    lda $fc70
+    and #$81
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_23:
+    lda $3f13
+    and #$83
+    bpl _86ef
+    lsr
+    bcc _86cf
+    ldx #$82
+    stx $fc7e
+_86cf:
+    lsr
+    bcc _8702
+    lda $fc70
+    bpl _86e2
+    lda $fc7c
+    and #$bf
+    sta $fc7c
+    jmp _86ea
+_86e2:
+    lda $fc7c
+    ora #$40
+    sta $fc7c
+_86ea:
+    ldx #$88
+    jmp _86ff
+_86ef:
+    lsr
+    bcc _86f7
+    ldx #$02
+    stx $fc7e
+_86f7:
+    lsr
+    bcc _8702
+    ldx #$08
+    stx $fc7d
+_86ff:
+    stx $fc7e
+_8702:
+    rts
+
+osword_81_24:
+    lda #$00
+    sta $80
+    lda $fc55
+    tax
+    bpl _8725
+    lda $fc54
+    bmi _871f
+    and #$40
+    beq _8725
+    lda #$80
+    ora $80
+    sta $80
+    jmp _8725
+_871f:
+    lda #$04
+    ora $80
+    sta $80
+_8725:
+    txa
+    and #$10
+    ora $80
+    sta $80
+    txa
+    asl
+    and #$02
+    ora $80
+    sta $80
+    txa
+    lsr
+    tax
+    and #$01
+    ora $80
+    sta $80
+    txa
+    lsr
+    and #$08
+    ora $80
+    sta $80
+    lda #$02
+    bit $fc7d
+    beq _8752
+    lda #$40
+    ora $80
+    sta $80
+_8752:
+    lda #$08
+    bit $fc7d
+    beq _875f
+    lda #$20
+    ora $80
+    sta $80
+_875f:
+    lda $80
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_25:
+_8768:
+    lda #$00
+    sta $fc55
+    sta $3f02
+    lda #$0f
+    sta $3f13
+    jsr _85d2
+    lda #$7f
+    sta $fc7e
+    sta $fc7d
+    sta $fc6e
+    sta $fc6d
+    lda #$16
+    sta $3f00
+    lda #$81
+    sta $3f01
+    jsr _8365
+    jsr _836b
+    jsr _8371
+    jsr _8504
+    jsr _850a
+    jsr _8510
+    lda $f0
+    pha
+    lda $f1
+    pha
+    lda #$b0
+    sta $fc54
+    sta $3f03
+    lda #$00
+    sta $fc5d
+    jsr _8cea
+    lda #$00
+    sta $fc50
+    sta $fc50
+    lda #$00
+    sta $f0
+    jsr set_recv_baud_rate ; _826e
+    lda #$00
+    sta $f0
+    jsr _8298
+    lda #$0d
+    ldx #$07
+    jsr OSBYTE
+    lda #$85
+    sta $3f13
+    jsr _8381
+    lda #$00
+    sta $3f13
+    jsr _8463
+    lda #$ff
+    sta $3f13
+    jsr _84c1
+    jsr _8cf2
+    lda #$00
+    sta $fc58
+    sta $fc58
+    lda #$00
+    sta $3f13
+    jsr _8652
+    lda #$00
+    sta $3f13
+    jsr _8682
+    lda #$80
+    sta $fc5f
+    lda #$02
+    sta $3f13
+    jsr _8516
+    lda #$ff
+    sta $fc73
+    lda #$36
+    sta $fc72
+    lda #$20
+    sta $fc7b
+    lda #$6b
+    sta $fc7c
+    lda #$00
+    sta $f0
+    jsr _82d4
+    lda #$00
+    sta $f0
+    jsr _82e1
+    jsr _8ad4
+    bcc _8842
+    lda #$01
+    pha
+    jmp _8845
+
+_8842:
+    lda #$00
+    pha
+_8845:
+    lda #$00
+    sta $fc57
+    lda #$5a
+    sta $fc56
+    lda $fc5e
+_8852:
+    jsr _8881
+    lda $fc55
+    and #$08
+    beq _8852
+    lda #$82
+    sta $3f13
+    jsr _8516
+    jsr _8a07
+    pla
+    sta $3f16
+    lda #$01
+    sta $3f15
+    pla
+    sta $f1
+    pla
+    sta $f0
+    rts
+
+osword_81_26:
+    lda $fcff
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_27:
+_8881:
+    lda $fc70
+    ora #$04
+    and #$fd
+    sta $fc70
+    rts
+
+osword_81_28:
+_888c:
+    lda #$80
+    sta $fc5f
+    lda $fc70
+    and #$f9
+    sta $fc70
+    rts
+
+osword_81_29:
+    lda $3f10
+    bne _88cf
+    lda $3f12
+    beq _88cf
+    sta $3f0f
+    sta $3f10
+    lda $f0
+    sta $3f0c
+    lda $f1
+    sta $3f0d
+    ldy #$05
+    sty $3f0e
+    jsr _88d0
+    lda $3f02
+    ora #$08
+    sta $fc55
+    sta $3f02
+    lda #$88
+    sta $fc6d
+    sta $fc6e
+_88cf:
+    rts
+
+_88d0:
+    tya
+    pha
+    lda $80
+    pha
+    lda $81
+    pha
+    lda $3f0c
+    sta $80
+    lda $3f0d
+    sta $81
+    ldy $3f0e
+    lda ($80),y
+    cmp #$0a
+    bcc _88f9
+    sta $3f0b
+    inc $3f0b
+    lda #$00
+    sta $3f11
+    jmp _8905
+_88f9:
+    cmp #$00
+    bne _88ff
+    lda #$0a
+_88ff:
+    sta $3f0b
+    sta $3f11
+_8905:
+    pla
+    sta $81
+    pla
+    sta $80
+    pla
+    tay
+    rts
+
+osword_81_2a:
+_890e:
+    lda $fc60
+    tax
+    and #$20
+    beq _891b
+    lda #$00
+    jmp _891d
+_891b:
+    lda #$ff
+_891d:
+    sta $3f16
+    inc $3f15
+    txa
+    and #$40
+    bne _892d
+    lda #$01
+    jmp _892f
+_892d:
+    lda #$fe
+_892f:
+    sta $3f17
+    inc $3f15
+    txa
+    ldx $3f13
+    beq _8948
+    cpx #$01
+    beq _8952
+    cpx #$fe
+    beq _894d
+    and #$df
+    jmp _8954
+_8948:
+    ora #$20
+    jmp _8954
+_894d:
+    ora #$40
+    jmp _8954
+_8952:
+    and #$bf
+_8954:
+    sta $fc60
+    rts
+
+osword_81_2b:
+    lda #$00
+    sta $3f17
+    lda $3f12
+    sta $3f16
+    beq _89dc
+    lda #$ff
+    sta $3f18
+    lda $3f28
+    ora #$f0
+    sta $3f19
+    lda #$00
+    ldx #$04
+_8976:
+    sta $3f1b,x
+    dex
+    bne _8976
+    ldy #$05
+_897e:
+    tya
+    pha
+    jsr _8cc1
+    cpy #$00
+    bne _898b
+    cpx #$00
+    beq _89cc
+_898b:
+    pla
+    tay
+    lda ($f0),y
+    sta $3f1a
+    iny
+    dec $3f12
+    beq _89d4
+    lda ($f0),y
+    sta $3f1b
+    lda $f0
+    pha
+    lda $f1
+    pha
+    tya
+    pha
+    ldx #$18
+    stx $f0
+    ldy #$3f
+    sty $f1
+    lda #$07
+    sta $ef
+    jsr _8a78
+    pla
+    tay
+    pla
+    sta $f1
+    pla
+    sta $f0
+    bcs _89d4
+    iny
+    dec $3f12
+    bne _897e
+    lda #$00
+    sta $3f16
+    jmp _89dc
+_89cc:
+    pla
+    tay
+    sty $3f16
+    jmp _89dc
+_89d4:
+    lda #$ff
+    sta $3f17
+    sty $3f16
+_89dc:
+    lda #$02
+    sta $3f15
+    rts
+
+osword_81_2c:
+    lda [copyright_offset + 1]  ; $8008
+    sta $3f16
+    lda _8034
+    sta $3f17
+    lda #$02
+    sta $3f15
+    rts
+
+osword_81_2d:
+    lda $fc70
+    and #$04
+    ldx $3f10
+    beq _8a00
+    ora #$02
+_8a00:
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_2e:
+_8a07:
+    jsr _888c
+    lda #$08
+    sta $fc6d
+    sta $fc6e
+    lda $fc5f
+    lda $3f02
+    and #$f7
+    sta $fc55
+    sta $3f02
+    lda #$00
+    sta $3f10
+    rts
+
+osword_81_2f:
+    jsr _8cc1
+    stx $3f16
+    sty $3f17
+    lda #$02
+    sta $3f15
+    rts
+
+osword_81_30:
+    lda #$80
+    sta $fc5e
+    rts
+
+osword_81_31:
+_8a3b:
+    lda $3f05
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_32:
+_8a45:
+    lda $3f0a
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_33:
+_8a4f:
+    lda $3f09
+    sta $3f16
+    inc $3f15
+    rts
+
+osword_81_34:
+    lda $3f13
+    and #$70
+    sta $fc52
+    rts
+
+osword_81_35:
+    lda $3f13
+    and #$70
+    sta $fc5a
+    rts
+
+osword_81_36:
+    lda #$00
+    sta $3f16
+    inc $3f15
+    rts
+
+_8a74: .byte $ff
+
+; Handler for OSWORD &07
+_osword_07:
+_8a75:
+    jmp _8a78
+
+_8a78:
+    php
+    sei
+    pha
+    ldy #$01
+    lda ($f0),y
+    cmp #$ff
+    bne _8aca
+    pla
+    iny
+    lda ($f0),y
+    tax
+    pha
+    iny
+    lda ($f0),y
+    pha
+    ldy #$00
+    lda ($f0),y
+    cmp #$f0
+    bcc _8ab5
+    pla
+    pha
+    cmp $3f31
+    beq _8aa0
+    bcc _8aa7
+    bcs _8acd
+_8aa0:
+    cpx $3f30
+    beq _8aa7
+    bcs _8acd
+_8aa7:
+    cmp $3f2f
+    beq _8ab0
+    bcc _8acd
+    bcs _8ab5
+_8ab0:
+    cpx $3f2e
+    bcc _8acd
+_8ab5:
+    lda ($f0),y
+    jsr _8ce5
+    pla
+    jsr _8ce5
+    pla
+    jsr _8ce5
+    jsr _8b97
+    plp
+    clc
+    lda #$00
+    rts
+
+_8aca:
+    pla
+    plp
+    rts
+_8acd:
+    pla
+    pla
+    plp
+    sec
+    lda #$00
+    rts
+
+_8ad4:
+    lda #$7f
+    sta $fc6d
+    sta $fc6e
+    lda #$20
+    sta $fc6c
+    lda #$81
+    sta $fc6e
+    lda #$00
+    sta $fc63
+    lda #$63
+    sta $fc60
+    lda #$63
+    sta $fc62
+    ldy #$f0
+    ldx #$02
+    lda #$60
+    sta $fc60
+_8afe:
+    dey
+    bne _8afe
+    ldy #$f0
+    dex
+    bne _8afe
+    lda #$63
+    sta $fc60
+    lda #$f0
+    jsr _8bfa
+    bcs _8b8b
+    lda #$00
+    sta $3f28
+    lda #$00
+    sta $3f2e
+    sta $3f2f
+    lda #$ff
+    sta $3f30
+    lda #$1f
+    sta $3f31
+    lda #$10
+    sta $3f2a
+_8b2e:
+    lda #$00
+    sta $3f2c
+    lda #$02
+    sta $3f2b
+    dec $3f2a
+    bmi _8b8b
+    jsr _8c82
+    jsr _8c66
+    cmp #$28
+    bne _8b2e
+    jsr _8c66
+    cmp #$43
+    bne _8b2e
+    jsr _8c66
+    cmp #$29
+    bne _8b2e
+    lda $3f2a
+    sta $3f28
+    lda #$3a
+    sta $3f2b
+    jsr _8c82
+    jsr _8c66
+    sta $3f30
+    jsr _8c66
+    sta $3f31
+    lda #$20
+    sta $3f2e
+    lda #$00
+    sta $3f2f
+    lda #$1f
+    clc
+    adc $3f30
+    sta $3f30
+    lda #$00
+    adc $3f31
+    sta $3f31
+    clc
+_8b8b:
+    rts
+
+_8b8c:
+    lda #$01
+    sta $fc6d
+    jsr _8b97
+    jmp _8113
+_8b97:
+    ldx #$08
+    stx $3f29
+_8b9c:
+    jsr _8cdd
+    bcs _8bf9
+    tay
+    beq _8bab
+    jsr _8c33
+    eor #$00
+    bmi _8bf9
+_8bab:
+    jsr _8cd7
+    sta $3f2a
+    jsr _8cd7
+    sta $3f2c
+    jsr _8cd7
+    sta $3f2b
+    lda $3f2a
+    beq _8be8
+    bpl _8be5
+    bit $3f2a
+    bvs _8bcf
+    jsr _8c82
+    jmp _8bd8
+_8bcf:
+    asl $3f2b
+    rol $3f2c
+    jsr _8ca8
+_8bd8:
+    lda #$d1
+    ldx #$00
+    ldy #$ff
+    jsr OSBYTE
+    txa
+    jmp _8bfa
+_8be5:
+    jsr _8bfa
+_8be8:
+    lda $3f2b
+    jsr _8bfa
+    lda $3f2c
+    jsr _8bfa
+    lsr $3f29
+    bne _8b9c
+_8bf9:
+    rts
+
+_8bfa:
+    php
+    sei
+    pha
+    lda #$ff
+    sta $fc63
+    pla
+    sta $fc61
+    pha
+    lda $fc60
+    ora #$03
+    eor #$01
+    sta $fc60
+    tya
+    pha
+    lda #$04
+    ldy #$ff
+_8c17:
+    dey
+    beq _8c2d
+    bit $fc60
+    bne _8c17
+    pla
+    tay
+    lda $fc60
+    ora #$03
+    sta $fc60
+    pla
+    plp
+    clc
+    rts
+
+_8c2d:
+    pla
+    tay
+    pla
+    plp
+    sec
+    rts
+_8c33:
+    php
+    sei
+    pha
+    lda #$00
+    sta $fc63
+    lda $fc60
+    ora #$03
+    eor #$02
+    sta $fc60
+    pla
+    tay
+    pha
+    ldy #$ff
+    lda #$04
+_8c4c:
+    dey
+    beq _8c2d
+    bit $fc60
+    bne _8c4c
+    pla
+    tay
+    lda $fc61
+    pha
+    lda $fc60
+    ora #$03
+    sta $fc60
+    pla
+    plp
+    clc
+    rts
+
+_8c66:
+    php
+    sei
+    lda #$10
+    jsr _8bfa
+    jsr _8c33
+    plp
+    rts
+
+_8c72:
+    pha
+    jsr _8c7b
+    pla
+    lsr
+    lsr
+    lsr
+    lsr
+_8c7b:
+    and #$0f
+    ora #$40
+    jmp _8bfa
+_8c82:
+    php
+    sei
+    lda $3f2b
+    jsr _8c72
+    lda $3f2a
+    sta $3f2d
+    lda $3f2c
+    rol
+    rol
+    lsr $3f2d
+    ror
+    lsr $3f2d
+    ror
+    jsr _8c72
+    lda $3f2d
+    jsr _8c7b
+    plp
+    rts
+_8ca8:
+    jsr _8c82
+    ldx #$00
+_8cad:
+    jsr _8c66
+    ldy #$08
+_8cb2:
+    asl
+    ror $3f2b,x
+    dey
+    bne _8cb2
+    inx
+    cpx #$02
+    bcc _8cad
+    jmp _8c82
+_8cc1:
+    lda $f0
+    pha
+    lda $f1
+    pha
+    lda #$80
+    ldx #$f7
+    ldy #$ff
+    jsr OSBYTE
+    pla
+    sta $f1
+    pla
+    sta $f0
+    rts
+_8cd7:
+    ldx #$08
+    clv
+    jmp ($022c)
+_8cdd:
+    ldx #$08
+    bit _8a74
+    jmp ($022c)
+_8ce5:
+    ldx #$08
+    jmp ($022a)
+_8cea:
+    pha
+    lda #$10
+    sta $fc52
+    pla
+    rts
+_8cf2:
+    pha
+    lda #$10
+    sta $fc5a
+    pla
+    rts
+
+    pha
+    lda $84
+    beq _8d04
+    pla
+    jsr _8d06
+    rts
+
+_8d04:
+    pla
+    rts
+
+_8d06:
+    pha
+    pha
+    lsr
+    lsr
+    lsr
+    lsr
+    jsr _8d17
+    pla
+    and #$0f
+    jsr _8d17
+    pla
+    rts
+
+_8d17:
+    cmp #$0a
+    bcc _8d1d
+    adc #$06
+_8d1d:
+    adc #$30
+    jmp OSASCI
+_8d22:
+    pla
+    sta $82
+    pla
+    sta $83
+    tya
+    pha
+    ldy #$00
+_8d2c:
+    inc $82
+    bne _8d32
+    inc $83
+_8d32:
+    lda ($82),y
+    bmi _8d42
+    lda $84
+    beq _8d3f
+    lda ($82),y
+    jsr $ffe3
+_8d3f:
+    jmp _8d2c
+_8d42:
+    pla
+    tay
+    jmp ($0082)
+
+_8d47:
+.byte $5f,$70,$74,$72,$00,$86,$08,$00,$00,$00,$64,$2d,$73,$5f,$64,$5f,$70,$61,$67,$65,$5f,$6e,$6f,$00,$86,$10,$00,$00,$00,$b0,$2d,$73,$64,$5f,$70,$31,$6c,$31,$5f,$70,$74,$72,$00,$86,$10,$00,$00,$00,$90,$2d,$6d,$5f,$64,$5f,$74,$61,$62,$6c,$65,$5f,$70,$6f,$69,$6e,$74,$65,$72,$00,$86,$18,$00,$00,$00,$9c,$2d,$6d,$5f,$7a,$70,$00,$86,$18,$00,$00,$00,$1d,$34,$6d,$5f,$64,$5f,$62,$75,$66,$66,$5f,$70,$74,$72,$00,$86,$20,$00,$00,$00,$bf,$2d,$64,$5f,$6c,$62,$5f,$61,$64,$00,$86,$28,$00,$00,$00,$4b,$2e,$64,$5f,$64,$5f,$62,$75,$66,$66,$5f,$70,$74,$72,$00,$86,$28,$00,$00,$00,$e2,$2d,$65,$67,$41,$63,$6f,$70,$79,$00,$86,$30,$00,$00,$00,$f1,$2d,$65,$67,$58,$63,$6f,$70,$79,$00,$86,$34,$00,$00,$00,$d3,$2e,$65,$67,$59,$63,$6f,$70,$79,$00,$86,$38,$00,$00,$00,$60
+
+_8e01:
+    lda $3571
+    sta $04d9
+    cmp #$01
+    bne _8e15
+    lda $3419
+    and #$04
+    beq _8e15
+    jsr _8f8b
+_8e15:
+    ldy #$0a
+    lda #$00
+    sta $35ee,y
+    ldx $3509
+    inx
+    stx $04d4
+    jsr _9097
+    lda $04d4
+    sta $04d8
+    jsr _8e77
+    lda $35ed
+    cmp #$00
+    bne _8e3f
+    jsr _8f7b
+    jsr _8eb1
+    jmp _8ed5
+_8e3f:
+    cmp #$01
+    bne _8e4c
+    jsr _8f6a
+    jsr _8eb1
+    jmp _8ed5
+_8e4c:
+    jsr _8f45
+    jmp _8ed5
+_8e52:
+    ldx $04d9
+    lda _90cf,x
+    sta $04d9
+    dec $04da
+    sec
+    bmi _8e66
+    jsr _8e9b
+    bcs _8e52
+_8e66:
+    rts
+
+_8e67:
+    lda #$1c
+    sta $35ec
+    ldx #$49
+    jsr _90c0
+    bcs _8e76
+    jsr _8f8b
+_8e76:
+    rts
+
+_8e77:
+    jsr _93bc
+    lda $04d9
+    sta $3571
+    lda $0407
+    sta $3577
+    lda $0402
+    sta $3572
+    lda #$66
+    sta $3575
+    lda #$33
+    sta $3576
+    ldx #$5a
+    jmp _90c0
+
+_8e9b:
+    lda #$55
+    sta $3577
+    lda $04d9
+    sta $3571
+    ldx #$48
+    jsr _90c0
+    bcs _8eb0
+    jmp _8f8b
+_8eb0:
+    rts
+_8eb1:
+    lda #$00
+    cmp $3571
+    beq _8ec2
+    ldx #$4b
+    jsr _90c0
+    lda #$00
+    sta $3571
+_8ec2:
+    rts
+
+_8ec3:
+    lda $3571
+    cmp #$00
+    beq _8ed2
+    ldx #$82
+    jsr $3300
+    jsr _8eb1
+_8ed2:
+    jmp _93bc
+_8ed5:
+    lda #$1b
+    sta $35ec
+    jsr _93bc
+    ldx #$88
+    jmp _90c0
+
+_8ee2:
+    lda $3571
+    cmp #$01
+    beq _8ef0
+    lda $35ed
+    cmp #$00
+    bne _8eff
+_8ef0:
+    jsr _928a
+    jsr _8eb1
+    jsr _93bc
+    jsr _9297
+    jmp _8f18
+_8eff:
+    jsr _93bc
+    lda $3571
+    cmp #$01
+    bne _8f0c
+    jsr _93a7
+_8f0c:
+    jsr _8ec3
+    jsr _928a
+    jsr _92ca
+    jsr _9297
+_8f18:
+    ldx $04d4
+    dex
+    beq _8f28
+_8f1e:
+    lda $3366,x
+    cmp #$21
+    bcc _8f28
+    dex
+    bne _8f1e
+_8f28:
+    stx $3509
+    lda #$0a
+    sta $350a
+    ldx #$80
+    jsr $3300
+    lda #$ff
+    sta $3621
+    jsr _9234
+    jsr _923a
+    ldx $3413
+    txs
+    rts
+
+_8f45:
+    lda #$05
+    sta $04da
+    lda $3571
+    cmp #$01
+    beq _8f54
+    dec $04da
+_8f54:
+    jsr _8f6a
+    lda $3571
+    cmp #$01
+    bne _8f61
+    jsr _9392
+_8f61:
+    jsr _8eb1
+    jsr _8e52
+    bcc _8f54
+    rts
+
+_8f6a:
+    jsr _8f7b
+    jsr _8e67
+    bcs _8f7a
+    ldx #$1f
+    jsr $3300
+    jmp _8f6a
+_8f7a:
+    rts
+
+_8f7b:
+    jsr _8f9e
+    ldx #$8d
+    jsr _90c0
+    bcs _8f8a
+    lda $3573
+    bne _8f7b
+_8f8a:
+    rts
+
+_8f8b:
+    ldx #$01
+    stx $3573
+    inx
+    stx $3574
+    ldx #$88
+    jsr _90c0
+    ldx #$8c
+    jmp _90c0
+
+_8f9e:
+    lda $04d8
+    sta $04d4
+    ldx #$01
+    stx $04d8
+    lda #$00
+    ldx $3366
+    sta $3366,x
+    jsr _8fbf
+    bcs _8fbe
+_8fb6:
+    jsr _8fca
+    jsr _9097
+    bcc _8fb6
+_8fbe:
+    rts
+
+_8fbf:
+    lda $04d4
+    cmp $3366
+    bcs _8fc9
+    cmp #$4b
+_8fc9:
+    rts
+
+_8fca:
+    lda #$00
+    sta $04db
+    sta $04dc
+    ldx #$00
+_8fd4:
+    lda $35ee,x
+    cmp #$20
+    bne _8fde
+    inx
+    bne _8fd4
+_8fde:
+    stx $04d5
+_8fe1:
+    lda $04dc
+    bne _8ff2
+    jsr _8ff5
+    txa
+    beq _8ff2
+    jsr _9020
+    bcc _8fe1
+    rts
+
+_8ff2:
+    jmp _8ee2
+_8ff5:
+    ldy $04d5
+    ldx #$00
+_8ffa:
+    lda $35ee,y
+    iny
+    cmp #$21
+    bcc _9017
+    cmp #$2a
+    beq _9009
+    inx
+    bne _8ffa
+_9009:
+    txa
+    bne _901c
+    inc $04d5
+    lda #$ff
+    sta $04db
+    jmp _8ff5
+_9017:
+    lda #$ff
+    sta $04dc
+_901c:
+    stx $04d6
+    rts
+
+_9020:
+    lda $04d4
+    pha
+    tax
+    lda $04d6
+    pha
+    ldy $04d5
+_902c:
+    lda $3366,x
+    inx
+    jsr _908c
+    sta $04d7
+    lda $35ee,y
+    iny
+    cmp $04d7
+    beq _9043
+    cmp #$23
+    bne _906d
+_9043:
+    dec $04d6
+    bne _902c
+    lda $04dc
+    beq _9054
+    lda $3366,x
+    cmp #$21
+    bcs _9066
+_9054:
+    lda #$00
+    sta $04db
+    sty $04d5
+    stx $04d4
+    dex
+    cpx $3366
+    pla
+    pla
+    rts
+
+_9066:
+    lda $04d7
+    cmp #$21
+    bcc _9085
+_906d:
+    lda $04db
+    beq _9085
+    pla
+    sta $04d6
+    pla
+    tax
+    inx
+    stx $04d4
+    cpx $3366
+    bcc _9020
+    beq _9020
+    pha
+    pha
+_9085:
+    stx $04d4
+    sec
+    pla
+    pla
+    rts
+_908c:
+    cmp #$61
+    bcc _9096
+    cmp #$7b
+    bcs _9096
+    and #$5f
+_9096:
+    rts
+
+_9097:
+    ldx $04d4
+_909a:
+    stx $04d4
+    jsr _8fbf
+    bcs _90b9
+    lda $3366,x
+    cmp #$21
+    bcc _90ae
+    inx
+    bne _909a
+    beq _90b9
+_90ae:
+    inx
+    sec
+    beq _90b9
+    lda $3366,x
+    cmp #$21
+    bcc _90ae
+_90b9:
+    stx $04d4
+    jsr _8fbf
+    rts
+_90c0:
+    lda #$71
+    ldy #$35
+    jsr $3300
+    lda $357b
+    clc
+    beq _90ce
+    sec
+_90ce:
+    rts
+
+_90cf:
+.byte $01,$02,$04,$04,$05,$06,$07,$02
+
+_90d7:
+    jsr _a1de
+    jsr _9234
+    jsr _9392
+    lda $35ed
+    cmp #$00
+    bne _90ed
+    jsr _90f3
+    jmp _90f0
+_90ed:
+    jsr _90fb
+_90f0:
+    jmp _923a
+_90f3:
+    jsr _93a7
+    ldx #$80
+    jmp $3300
+_90fb:
+    lda $35e5
+    cmp $35ed
+    bne _9118
+    jsr _93a7
+    ldx #$82
+    jsr $3300
+    ldx #$4b
+    jsr _93d1
+    lda #$00
+    sta $3571
+    jsr _93a7
+_9118:
+    lda $35ed
+    sta $0401
+    lda #$55
+    sta $0407
+    ldx #$48
+    jsr _93d8
+    lda $040b
+    bne _9153
+    lda $3571
+    cmp #$01
+    bne _9137
+    jsr _93a7
+_9137:
+    lda $3571
+    cmp #$00
+    beq _9148
+    ldx #$82
+    jsr $3300
+    ldx #$4b
+    jsr _93d1
+_9148:
+    jsr _93bc
+    jsr _92ca
+    ldx #$81
+    jsr $3300
+_9153:
+    rts
+
+_9154:
+    jsr _9234
+    jsr _915d
+    jmp _923a
+_915d:
+    jsr _93a7
+    ldx #$51
+    jsr _93d1
+    ldx $0400
+    jmp $3300
+    jsr _a1de
+    jsr _9234
+    jsr _9227
+    jsr _9307
+    ldx #$4d
+    jsr _93d8
+    lda $040b
+    pha
+    beq _9189
+    lda $35ed
+    cmp #$01
+    bne _918e
+_9189:
+    ldx #$4b
+    jsr _93d8
+_918e:
+    pla
+    sta $040b
+    jsr _9339
+    jsr _91f6
+    jsr _a261
+    jmp _923a
+    jsr _a1de
+    jsr _9234
+    lda $35ed
+    cmp #$00
+    bne _91b6
+    jsr _9227
+    ldx #$4c
+    jsr _93d8
+    jsr _91f6
+_91b6:
+    jsr _a261
+    jmp _923a
+    jsr _a1de
+    jsr _9234
+    jsr _928a
+    jsr _9227
+    jsr _9307
+    ldx #$4e
+    jsr _93d8
+    lda $040b
+    bne _91e0
+    lda $040c
+    sta $0402
+    ldx #$4b
+    jsr _93d8
+_91e0:
+    jsr _9339
+    jsr _9297
+    jsr _a261
+    lda $35ed
+    cmp #$01
+    bne _91f3
+    jsr _915d
+_91f3:
+    jmp _923a
+_91f6:
+    lda $040b
+    bne _9215
+    ldx #$82
+    jsr $3300
+    lda $3571
+    cmp #$01
+    bne _920d
+    jsr _9216
+    jmp _9215
+_920d:
+    lda #$00
+    sta $3571
+    jsr _915d
+_9215:
+    rts
+
+_9216:
+    lda $3419
+    ora #$04
+    sta $3419
+    jsr _92a8
+    ldx #$07
+    jsr $3300
+    rts
+
+_9227:
+    lda $3572
+    sta $0402
+    lda $3577
+    sta $0407
+    rts
+
+_9234:
+    lda #$00
+    sta $040b
+    rts
+_923a:
+    lda $040b
+    beq _9245
+    jsr _927b
+    jmp _927a
+_9245:
+    lda $3419
+    and #$20
+    beq _927a
+    lda $3571
+    cmp #$01
+    bne _925f
+    lda #$74
+    sta $2d
+    ldx #$01
+    jsr $3300
+    jmp _9268
+_925f:
+    lda #$75
+    sta $2d
+    ldx #$01
+    jsr $3300
+_9268:
+    clc
+    lda #$6b
+    adc $3571
+    sta $2d
+    ldx #$01
+    jsr $3300
+    ldx #$14
+    jsr $3300
+_927a:
+    rts
+
+_927b:
+    lda $040b
+    jsr _9429
+    sta $35ec
+    lda #$ff
+    sta $3622
+    rts
+
+_928a:
+    lda $3573
+    sta $048e
+    lda $3574
+    sta $048f
+    rts
+
+_9297:
+    lda $048e
+    sta $3573
+    lda $048f
+    sta $3574
+    ldx #$4f
+    jmp _93d1
+
+_92a8:
+    lda #$01
+    sta $3571
+    lda #$22
+    sta $3577
+    ldx #$47
+    jsr _93d1
+    jsr _9448
+    jsr _92dd
+    lda #$01
+    sta $3366
+    ldx #$52
+    jsr _93d1
+    jmp _92ca
+_92ca:
+    jsr _92f0
+    ldx #$55
+    jsr _93d1
+    lda #$66
+    sta $3575
+    lda #$33
+    sta $3576
+    rts
+
+_92dd:
+    jsr _92f0
+    ldx #$54
+    jsr _93d1
+    lda #$66
+    sta $3575
+    lda #$33
+    sta $3576
+    rts
+
+_92f0:
+    lda #$0b
+    sta $3575
+    lda #$35
+    sta $3576
+    lda #$01
+    sta $3573
+    sta $3574
+    ldx #$4f
+    jmp _93d1
+_9307:
+    lda $35ed
+    sta $0401
+    lda #$0d
+    sta $0405
+    lda #$04
+    sta $0406
+    lda $3571
+    cmp #$01
+    bne _9321
+    jsr _92dd
+_9321:
+    lda $35ed
+    cmp #$01
+    bne _9338
+    jsr _93a7
+    ldx #$82
+    jsr $3300
+    ldx #$4c
+    jsr _93d1
+    jsr _93a7
+_9338:
+    rts
+
+_9339:
+    lda $35ed
+    cmp #$01
+    bne _9391
+    jsr _93a7
+    lda #$01
+    sta $3571
+    lda #$22
+    sta $3577
+    lda $040b
+    beq _936d
+    jsr _92a8
+    lda #$07
+    sta $0400
+    lda $3419
+    ora #$04
+    sta $3419
+    jsr _927b
+    lda #$00
+    sta $040b
+    jmp _938e
+_936d:
+    ldx #$48
+    jsr _93d1
+    jsr _92ca
+    lda #$0a
+    ldy #$35
+    jsr _97d9
+    jsr _92dd
+    lda #$81
+    sta $0400
+    lda #$04
+    eor #$ff
+    and $3419
+    sta $3419
+_938e:
+    jsr _93a7
+_9391:
+    rts
+
+_9392:
+    lda $3419
+    and #$04
+    beq _93a1
+    lda #$07
+    sta $0400
+    jmp _93a6
+_93a1:
+    lda #$80
+    sta $0400
+_93a6:
+    rts
+
+_93a7:
+    lda #$08
+    sta $35
+    lda #$35
+    sta $36
+    lda #$7c
+    sta $37
+    lda #$35
+    sta $38
+    ldy #$6f
+    jmp _943a
+
+_93bc:
+    lda #$70
+    sta $35
+    lda #$35
+    sta $36
+    lda #$00
+    sta $37
+    lda #$04
+    sta $38
+    ldy #$07
+    jmp _943a
+_93d1:
+    lda #$71
+    ldy #$35
+    jmp $3300
+_93d8:
+    lda #$01
+    ldy #$04
+    jmp $3300
+    lda $35e5
+    cmp #$06
+    beq _93ed
+    cmp #$07
+    beq _93ed
+    jmp _93fd
+_93ed:
+    jsr _93a7
+    ldx #$82
+    jsr $3300
+    lda #$00
+    sta $3571
+    jsr _93a7
+_93fd:
+    lda $3571
+    cmp #$06
+    beq _940b
+    cmp #$07
+    beq _940b
+    jmp _9418
+_940b:
+    ldx #$82
+    jsr $3300
+    lda #$00
+    sta $3571
+    jsr _915d
+_9418:
+    rts
+
+_9419:
+.byte $00,$03,$05,$09,$0a,$ba,$07,$08
+_9421:
+.byte $00,$06,$0f,$09,$0a,$05,$07,$08
+
+_9429:
+    ldy #$07
+_942b:
+    cmp _9419,y
+    beq _9436
+    dey
+    bne _942b
+    brk
+    beq _9436
+_9436:
+    lda _9421,y
+    rts
+_943a:
+    lda ($35),y
+    tax
+    lda ($37),y
+    sta ($35),y
+    txa
+    sta ($37),y
+    dey
+    bne _943a
+    rts
+
+_9448:
+    ldx _9455
+_944b:
+    lda _9454,x
+    sta $350a,x
+    dex
+    bne _944b
+_9454:
+    rts
+
+_9455:
+.byte $66,$20,$00,$00,$00,$00,$00,$00,$00,$00,$39,$3f,$00,$20,$20,$20
+.byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20
+.byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20
+.byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$40,$40,$40,$40,$40,$40,$20
+.byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20
+.byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$00,$2d,$00
+.byte $00,$00,$00,$00,$00,$00
+
+_94bb:
+    jsr _9234
+    jsr _928a
+    jsr _9227
+    lda $3573
+    sta $0403
+    lda #$33
+    sta $0490
+    lda #$03
+    sta $0491
+    ldx #$40
+    jsr _95ba
+    sta $040b
+    lda $040b
+    bne _94e4
+    jsr _94ea
+_94e4:
+    jsr _9297
+    jmp _923a
+_94ea:
+    lda $35ed
+    sta $0491
+    lda #$0b
+    sta $0492
+    lda #$35
+    sta $0493
+    ldx #$41
+    jsr _95ba
+    sta $040b
+    lda $040b
+    bne _9551
+    lda $0491
+    cmp #$00
+    bne _951b
+    lda #$01
+    sta $0403
+    lda #$00
+    sta $048d
+    jmp _9524
+_951b:
+    clc
+    lda $0403
+    adc #$01
+    sta $048d
+_9524:
+    lda $0403
+    cmp #$01
+    bne _9549
+    lda $350c
+    and #$10
+    beq _9541
+    lda $0491
+    cmp #$00
+    beq _9541
+    lda #$06
+    sta $0404
+    jmp _9546
+_9541:
+    lda #$02
+    sta $0404
+_9546:
+    jmp _954e
+_9549:
+    lda #$01
+    sta $0404
+_954e:
+    jsr _9552
+_9551:
+    rts
+
+_9552:
+    lda #$0d
+    sta $0405
+    lda #$04
+    sta $0406
+    ldx #$4f
+    jsr _93d8
+_9561:
+    lda $0403
+    cmp $048d
+    beq _959f
+    lda $0403
+    beq _959f
+    lda $040b
+    bne _959f
+    jsr _983c
+    lda #$03
+    sta $0492
+    lda #$04
+    sta $0493
+    ldx #$42
+    jsr _95ba
+    sta $040b
+    lda $040b
+    bne _959c
+    lda #$00
+    sta $0403
+    lda #$01
+    sta $0404
+    ldx #$50
+    jsr _93d8
+_959c:
+    jmp _9561
+_959f:
+    lda $040b
+    bne _95b9
+    ldx #$43
+    jsr _95ba
+    sta $040b
+    lda $040b
+    bne _95b9
+    ldx #$44
+    jsr _95ba
+    sta $040b
+_95b9:
+    rts
+
+_95ba:
+    lda #$90
+    ldy #$04
+    jmp $3300
+_95c1:
+    jsr _960d
+    ldy #$3b
+    ldx #$16
+_95c8:
+    lda $35ed,x
+    sta $2c
+    sta $049c,x
+    and #$5f
+    cmp #$54
+    bne _95fa
+    lda $350c
+    and #$10
+    bne _95fa
+    cpx #$03
+    bcc _95fa
+    lda $35ec,x
+    cmp #$2a
+    bne _95fa
+    cpy #$3b
+    bne _95fa
+    lda #$20
+    sta $049c,x
+    lda $04d3
+    ora #$40
+    sta $04d3
+    dex
+_95fa:
+    lda $2c
+    cmp #$20
+    beq _9601
+    tay
+_9601:
+    dex
+    bne _95c8
+    lda #$9d
+    sta $2c
+    ldy #$04
+    sty $2e
+    rts
+_960d:
+    ldx #$1f
+    lda #$7d
+_9611:
+    sta $049c,x
+    lda #$20
+    dex
+    bne _9611
+    rts
+    jsr _9234
+    lda #$00
+    sta $040b
+    sta $04d3
+    jsr _9227
+    lda #$0d
+    sta $0405
+    lda #$04
+    sta $0406
+    lda $35ed
+    cmp #$00
+    bne _9647
+    ldx #$46
+    jsr $3300
+    jsr _928a
+    jsr _965b
+    jmp _9655
+_9647:
+    jsr _928a
+    jsr _96cf
+    lda $040b
+    bne _9655
+    jsr _965b
+_9655:
+    jsr _9297
+    jmp _923a
+_965b:
+    lda $35ee
+    cmp #$00
+    beq _966d
+    jsr _95c1
+    lda #$00
+    sta $04bb
+    jmp _9697
+_966d:
+    lda #$01
+    sta $0403
+    lda #$04
+    sta $0404
+    jsr _9837
+    lda #$1b
+    sta $35
+    lda #$04
+    sta $36
+    lda #$9c
+    sta $37
+    lda #$04
+    sta $38
+    lda #$1e
+    sta $04bf
+    jsr _984e
+    lda #$00
+    sta $04bb
+_9697:
+    lda #$9d
+    ldy #$04
+    jsr _9894
+    lda #$03
+    sta $0401
+    ldx #$4e
+    jsr _93d8
+    lda $040b
+    bne _96c9
+    clc
+    lda $fdea
+    adc $049a
+    cmp #$63
+    bcc _96ba
+    bne _96c9
+_96ba:
+    jsr _9752
+    jsr _9811
+    jsr _99ef
+    jsr _9824
+    jmp _96ce
+_96c9:
+    lda #$03
+    sta $040b
+_96ce:
+    rts
+
+_96cf:
+    lda #$5f
+    sta $0494
+    lda #$02
+    sta $0495
+    jsr _96f7
+    lda $040b
+    bne _96f1
+    lda #$61
+    sta $0494
+    lda #$01
+    sta $0495
+    jsr _96f7
+    jmp _96f6
+_96f1:
+    lda #$07
+    sta $040b
+_96f6:
+    rts
+
+_96f7:
+    ldx $0494
+    lda $350b,x
+    beq _9751
+    lda $350c
+    and $0495
+    bne _9751
+    ldx $0494
+    lda $350b,x
+    sta $0403
+    inx
+    lda $350b,x
+    sta $0404
+    jsr _9837
+    lda #$01
+    sta $0496
+_971f:
+    ldx $0496
+    lda $040d,x
+    cmp #$7b
+    beq _972f
+    inc $0496
+    jmp _971f
+_972f:
+    inc $0496
+_9732:
+    ldx $0496
+    lda $040d,x
+    cmp #$7d
+    beq _9751
+    ldx $0496
+    lda $040d,x
+    cmp #$20
+    beq _974b
+    lda #$08
+    sta $040b
+_974b:
+    inc $0496
+    jmp _9732
+_9751:
+    rts
+
+_9752:
+    lda $040c
+    sta $0402
+    lda #$01
+    sta $0403
+    sta $0404
+    lda #$0d
+    sta $0405
+    lda #$04
+    sta $0406
+    lda #$0c
+    ldy #$04
+    jsr _97d9
+    lda $3569
+    sta $046b
+    lda #$bf
+    and $350c
+    sta $040e
+    lda #$9c
+    sta $35
+    lda #$04
+    sta $36
+    lda #$4b
+    sta $37
+    lda #$04
+    sta $38
+    lda #$1e
+    sta $04bf
+    jsr _984e
+    lda $356e
+    sta $0470
+    lda $356f
+    sta $0471
+    lda $3570
+    sta $0472
+    lda $350d
+    ora $04d3
+    sta $040f
+    lda $356a
+    sta $046c
+    lda $356b
+    sta $046d
+    lda $356c
+    sta $046e
+    lda $356d
+    sta $046f
+    ldx #$4f
+    jsr _93d8
+    ldx #$54
+    jsr _93d8
+    ldx #$4b
+    jmp _93d8
+_97d9:
+    sta $37
+    sty $38
+    ldx #$0a
+_97df:
+    ldy _9806,x
+    lda ($37),y
+    pha
+    dex
+    bne _97df
+    lda #$54
+    sta $35
+    lda #$94
+    sta $36
+    lda _9455
+    sta $04bf
+    jsr _984e
+    ldx #$00
+_97fb:
+    ldy _9807,x
+    pla
+    sta ($37),y
+    inx
+    cpx #$0a
+    bne _97fb
+_9806:
+    rts
+
+_9807:
+.byte $5f,$02,$03,$64,$65,$66,$60,$61,$62,$63
+
+_9811:
+    lda $3419
+    ora #$01
+    sta $3419
+    clc
+    lda $049a
+    adc $fdea
+    sta $fdea
+    rts
+
+_9824:
+    lda $fdea
+    ldy #$00
+    ldx #$1b
+    stx $2d
+    ldx #$ff
+    stx $3606
+    ldx #$0c
+    jmp $3300
+_9837:
+    ldx #$4f
+    jsr _93d8
+_983c:
+    ldx #$55
+    jsr _93d8
+    lda #$01
+    ldx #$0d
+    ldy #$04
+    stx $2d
+    ldx #$8e
+    jmp $3300
+_984e:
+    ldy $04bf
+    beq _985a
+_9853:
+    lda ($35),y
+    sta ($37),y
+    dey
+    bne _9853
+_985a:
+    rts
+
+_985b:
+.byte $00,$28,$29,$20,$2d
+.byte $78,$58,$3b,$7d,$00,$80,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39
+_9870:
+.byte $00,$10,$10,$10,$10,$20,$20,$40,$c0,$c0,$c0,$0f,$0e,$0d,$0c,$0b
+.byte $0a,$09,$08,$07,$06
+
+_9885:
+    txa
+    ldy #$14
+_9888:
+    cmp _985b,y
+    beq _9890
+    dey
+    bne _9888
+_9890:
+    lda _9870,y
+    rts
+
+_9894:
+    sta $39
+    sty $3a
+    lda #$00
+    sta $0497
+    lda #$01
+    sta $0498
+    lda #$00
+    sta $0499
+    lda #$00
+    sta $04d2
+    sta $049a
+    lda #$00
+    sta $04c1
+    sta $0496
+    jsr _98e2
+_98ba:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$80
+    bne _98d7
+    lda $0497
+    cmp #$00
+    bne _98d7
+    inc $0496
+    jsr _98e2
+    jmp _98ba
+_98d7:
+    lda $0497
+    sta $2c
+    ldy $049a
+    sty $2e
+    rts
+
+_98e2:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$40
+    bne _98ff
+    lda $0497
+    cmp #$00
+    bne _98ff
+    jsr _9902
+    inc $0496
+    jmp _98e2
+_98ff:
+    jmp _9979
+_9902:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$ff
+    bne _9917
+    lda #$01
+    sta $0497
+    jmp _9950
+_9917:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$20
+    beq _992a
+    jsr _9951
+    jmp _9950
+_992a:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$0f
+    beq _9950
+    inc $0499
+    ldy $0496
+    lda ($39),y
+    cmp #$39
+    beq _9948
+    lda #$01
+    sta $04c1
+_9948:
+    lda #$03
+    sta $04c2
+    jsr _99d8
+_9950:
+    rts
+
+_9951:
+    lda $0498
+    cmp #$00
+    bne _9960
+    lda #$01
+    sta $0497
+    jmp _9978
+_9960:
+    lda #$02
+    sta $04c2
+    jsr _99d8
+    lda #$00
+    sta $0498
+    lda $0499
+    sta $04d2
+    lda #$00
+    sta $0499
+_9978:
+    rts
+
+_9979:
+    lda $0498
+    cmp #$00
+    bne _999d
+    lda $0499
+    cmp #$02
+    bcs _9989
+    bne _9995
+_9989:
+    lda $0499
+    cmp #$04
+    bcc _9992
+    bne _9995
+_9992:
+    jmp _999a
+_9995:
+    lda #$01
+    sta $0497
+_999a:
+    jmp _99a5
+_999d:
+    lda #$02
+    sta $04c2
+    jsr _99d8
+_99a5:
+    clc
+    lda $04d2
+    adc $0499
+    cmp #$00
+    bcc _99be
+    beq _99be
+    cmp #$16
+    bcs _99be
+    beq _99be
+    inc $049a
+    jmp _99c3
+_99be:
+    lda #$01
+    sta $0497
+_99c3:
+    lda #$01
+    sta $0498
+    lda #$00
+    sta $0499
+    lda #$00
+    sta $04d2
+    lda #$00
+    sta $04c1
+    rts
+
+_99d8:
+    lda $04c1
+    cmp #$00
+    bne _99ee
+    lda $0499
+    cmp $04c2
+    bcc _99ee
+    beq _99ee
+    lda #$01
+    sta $0497
+_99ee:
+    rts
+
+_99ef:
+    lda #$9d
+    sta $39
+    lda #$04
+    sta $3a
+    lda #$00
+    sta $049b
+_99fc:
+    lda $049b
+    cmp #$0a
+    bcs _9a0e
+    beq _9a0e
+    jsr _9a0f
+    inc $049b
+    jmp _99fc
+_9a0e:
+    rts
+
+_9a0f:
+    lda #$ff
+    sta $0496
+    lda #$01
+    sta $049c
+_9a19:
+    lda $049c
+    cmp #$01
+    bne _9a5c
+    jsr _9a82
+    lda $04bc
+    cmp #$00
+    bne _9a34
+    lda #$00
+    ldy #$1a
+    sta ($35),y
+    ldy #$1b
+    sta ($35),y
+_9a34:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$40
+    bne _9a47
+    inc $0496
+    jmp _9a34
+_9a47:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$80
+    beq _9a59
+    lda #$00
+    sta $049c
+_9a59:
+    jmp _9a19
+_9a5c:
+    rts
+
+_9a5d:
+    sta $39
+    sty $3a
+    stx $049b
+    lda #$ff
+    sta $0496
+    jsr _9a82
+    lda $04bc
+    cmp #$01
+    rts
+
+_9a72:
+    sta $39
+    sty $3a
+    lda #$ff
+    sta $0496
+    jsr _9a85
+    lda $04bc
+    rts
+
+_9a82:
+    jsr _9b23
+_9a85:
+    ldy #$16
+    lda ($35),y
+    pha
+    lda #$00
+    sta ($35),y
+    lda #$00
+    sta $04bc
+    lda #$ff
+    sta $04bd
+    jsr _9b0c
+_9a9b:
+    ldy $04bd
+    lda ($35),y
+    tax
+    jsr _9885
+    and #$40
+    bne _9ada
+    lda $04bc
+    cmp #$00
+    bne _9ada
+    jsr _9af5
+    ldy $04bd
+    lda ($35),y
+    tax
+    jsr _9885
+    sta $04c0
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    cmp $04c0
+    beq _9ad4
+    lda #$01
+    sta $04bc
+    jmp _9ad7
+_9ad4:
+    jsr _9b0c
+_9ad7:
+    jmp _9a9b
+
+_9ada:
+    jsr _9af5
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$40
+    bne _9aef
+    lda #$01
+    sta $04bc
+_9aef:
+    ldy #$16
+    pla
+    sta ($35),y
+    rts
+
+_9af5:
+    inc $0496
+_9af8:
+    ldy $0496
+    lda ($39),y
+    tax
+    jsr _9885
+    and #$ef
+    bne _9b0b
+    inc $0496
+    jmp _9af8
+_9b0b:
+    rts
+
+_9b0c:
+    inc $04bd
+_9b0f:
+    ldy $04bd
+    lda ($35),y
+    tax
+    jsr _9885
+    and #$ef
+    bne _9b22
+    inc $04bd
+    jmp _9b0f
+_9b22:
+    rts
+
+_9b23:
+    lda #$00
+    sta $04be
+    lda #$2f
+    sta $35
+    lda #$36
+    sta $36
+_9b30:
+    lda $04be
+    cmp $049b
+    bcs _9b4d
+    beq _9b4d
+    inc $04be
+    clc
+    lda $35
+    adc #$1c
+    sta $35
+    lda $36
+    adc #$00
+    sta $36
+    jmp _9b30
+_9b4d:
+    rts
+
+_9b4e:
+    lda $3419
+    and #$20
+    beq _9b5b
+    jsr _9b81
+    jmp _9b80
+_9b5b:
+    lda $fd01
+    pha
+    lda $fd02
+    pha
+    jsr _9bc4
+    pla
+    sta $fd02
+    pla
+    sta $fd01
+    lda $fdeb
+    ldy $fdec
+    ldx #$1a
+    stx $2d
+    dec $3606
+    ldx #$0c
+    jsr $3300
+_9b80:
+    rts
+
+_9b81:
+    lda #$80
+    bit $3418
+    beq _9bbe
+    jsr _a1de
+    jsr _9c7e
+    lda #$04
+    eor #$ff
+    and $3419
+    sta $3419
+    jsr _9d08
+    lda #$01
+    sta $04c6
+    jsr _9d44
+    lda #$73
+    sta $2d
+    lda #$20
+    eor #$ff
+    and $3419
+    sta $3419
+    ldx #$01
+    jsr $3300
+    ldx #$81
+    jsr $3300
+    jmp _9bc3
+_9bbe:
+    lda #$19
+    sta $35ec
+_9bc3:
+    rts
+
+_9bc4:
+    jsr _9234
+    ldx #$46
+    jsr $3300
+    jsr _9c0f
+    lda $fde9
+    beq _9be0
+    sta $fdf0
+    sec
+    sbc #$06
+    sta $fdef
+    jmp _9be8
+_9be0:
+    lda #$fc
+    sta $fdf0
+    sta $fdef
+_9be8:
+    lda #$03
+    jsr _a044
+    lda #$00
+    sta $04c3
+    lda #$20
+    ora $3419
+    sta $3419
+    ldx #$82
+    jsr $3300
+    ldx #$4c
+    jsr _93d1
+    jsr _9216
+    lda #$00
+    sta $040b
+    jmp _923a
+_9c0f:
+    lda #$00
+    sta $04c6
+    jsr _9d44
+    jsr _9d31
+    lda #$9d
+    sta $35
+    lda #$04
+    sta $36
+    lda #$07
+    ldy #$fd
+    jsr _9a72
+    lda $04bc
+    cmp #$01
+    bne _9c4a
+    jsr _9d26
+    lda #$7e
+    sta $fd16
+    lda #$fa
+    sta $fd17
+    lda #$21
+    sta $fd18
+    lda #$00
+    sta $fd19
+    jsr _9d31
+_9c4a:
+    jsr _a261
+    jmp _9f5e
+_9c50:
+    jsr _9ca2
+    jsr _93bc
+    lda $3509
+    pha
+    lda $350a
+    pha
+    jsr _9c0f
+    lda #$30
+    ldx #$10
+_9c65:
+    sta $fd52,x
+    dex
+    bne _9c65
+    jsr _a261
+    pla
+    sta $350a
+    pla
+    sta $3509
+    jsr _93bc
+    ldx #$55
+    jmp _93d1
+_9c7e:
+    jsr _9ca2
+    ldx #$4c
+    jsr _93d1
+    lda #$01
+    sta $0401
+    ldx #$4e
+    jsr _93d8
+    ldx #$4b
+    jsr _93d8
+    lda $040c
+    sta $0402
+    jsr _93bc
+    jsr _92ca
+    rts
+
+_9ca2:
+    lda #$66
+    sta $0405
+    lda #$33
+    sta $0406
+    lda #$09
+    sta $0401
+    lda #$22
+    sta $0407
+    ldx #$48
+    jsr _93d8
+    rts
+
+_9cbc:
+    lda #$00
+    ldx #$08
+    stx $2d
+    ldy #$04
+    ldx #$56
+    jsr $3300
+    clc
+    lda $0408
+    adc #$6e
+    sta $0408
+    lda $0409
+    adc #$00
+    sta $0409
+    lda $0408
+    cmp $0908
+    php
+    lda $0409
+    cmp $0909
+    beq _9ced
+    pla
+    jmp _9cee
+_9ced:
+    plp
+_9cee:
+    bcs _9cf2
+    bne _9cfd
+_9cf2:
+    lda $3419
+    ora #$04
+    sta $3419
+    jmp _9d07
+_9cfd:
+    lda #$04
+    eor #$ff
+    and $3419
+    sta $3419
+_9d07:
+    rts
+
+_9d08:
+    lda #$06
+    sta $35
+    lda #$fd
+    sta $36
+    lda #$9c
+    sta $37
+    lda #$04
+    sta $38
+    lda #$16
+    sta $04bf
+    jsr _984e
+    lda #$00
+    sta $04b3
+    rts
+
+_9d26:
+    lda #$81
+    jmp _9d2d
+_9d2b:
+    lda #$80
+_9d2d:
+    sta $fcff
+    rts
+
+_9d31:
+    jsr _9d26
+    ldx #$00
+_9d36:
+    lda $fd00,x
+    sta $37d4,x
+    inx
+    cpx #$1d
+    bcc _9d36
+    jmp _9d2b
+_9d44:
+    ldx #$83
+    jsr $3300
+    lda #$00
+    sta $04c4
+    sta $04c5
+    sta $3509
+_9d54:
+    lda $04c5
+    cmp #$3e
+    bcs _9d6f
+    ldx #$87
+    jsr $3300
+    inc $04c4
+    jsr _9d74
+    lda $04c6
+    sta $362e
+    jmp _9d54
+_9d6f:
+    ldx #$8d
+    jmp $3300
+
+_9d74:
+    ldx $04c5
+    lda _a2bf,x
+    lsr
+    lsr
+    cmp $04c4
+    bne _9d8a
+    jsr _9db9
+    inc $04c5
+    jmp _9d74
+_9d8a:
+    rts
+    sty $04c4
+    lda #$00
+    sta $04c6
+    jmp _9d9e
+    sty $04c4
+    lda #$01
+    sta $04c6
+_9d9e:
+    lda #$00
+    sta $04c5
+_9da3:
+    ldx $04c5
+    lda _a2bf,x
+    lsr
+    lsr
+    cmp $04c4
+    beq _9db6
+    inc $04c5
+    jmp _9da3
+_9db6:
+    jmp _9d74
+_9db9:
+    ldx $04c5
+    lda _a2bf,x
+    and #$03
+    cmp #$02
+    bne _9dca
+    pha
+    jsr _9d26
+    pla
+_9dca:
+    asl
+    clc
+    adc $04c6
+    jsr _9dd5
+    jmp _9d2b
+_9dd5:
+    tax
+    lda _9f52,x
+    pha
+    lda _9f4a,x
+    pha
+    rts
+
+_9ddf:
+    lda #$66
+    clc
+    adc $3509
+    sta $35
+    lda #$33
+    adc #$00
+    sta $36
+    jsr _9f15
+    jmp _9e04
+    jsr _9f03
+    lda #$66
+    clc
+    adc $3509
+    sta $37
+    lda #$33
+    adc #$00
+    sta $38
+_9e04:
+    lda _a33b,x
+    sta $04bf
+    jmp _984e
+    jsr _9f03
+    lda _a33b,x
+    and #$0f
+    sta $2d
+    ldy #$01
+    lda ($35),y
+    sta $3624
+    lda $2d
+    cmp #$02
+    bcc _9e2f
+    beq _9e2f
+    iny
+    lda ($35),y
+    sta $3625
+    jmp _9e34
+
+_9e2f:
+    lda #$00
+    sta $3625
+_9e34:
+    lda _a33b,x
+    lsr
+    lsr
+    lsr
+    lsr
+    clc
+    adc $3509
+    adc #$67
+    pha
+    lda #$33
+    adc #$00
+    tay
+    pla
+    ldx #$38
+    jmp $3300
+    jsr _9f15
+    lda _a33b,x
+    and #$0f
+    cmp #$02
+    bne _9e85
+    lda _a33b,x
+    lsr
+    lsr
+    lsr
+    lsr
+    clc
+    adc $3509
+    tax
+    lda $3367,x
+    and #$0f
+    asl
+    sta $04c7
+    asl
+    asl
+    clc
+    adc $04c7
+    sta $04c7
+    inx
+    lda $3367,x
+    and #$0f
+    clc
+    adc $04c7
+    ldy #$01
+    sta ($37),y
+_9e85:
+    rts
+
+_9e86:
+    jsr _9f15
+    jsr _9f27
+    ldx $04cb
+    lda $3366,x
+    cmp #$39
+    bcc _9e9b
+    beq _9e9b
+    sec
+    sbc #$07
+_9e9b:
+    and #$0f
+    ldx $04ca
+    and _9f5a,x
+    ldy _9f5a,x
+    sty $35
+    ldx $04c9
+_9eab:
+    beq _9eb4
+    asl
+    asl $35
+    dex
+    jmp _9eab
+_9eb4:
+    ldy #$01
+    sta $36
+    lda ($37),y
+    ora $35
+    eor $35
+    ora $36
+    sta ($37),y
+    rts
+    jsr _9f03
+    jsr _9f27
+    ldy #$01
+    lda ($35),y
+    ldx $04c9
+_9ed0:
+    beq _9ed7
+    lsr
+    dex
+    jmp _9ed0
+_9ed7:
+    ldx $04ca
+    and _9f5a,x
+    ora #$30
+    cmp #$39
+    bcc _9ee8
+    beq _9ee8
+    clc
+    adc #$07
+_9ee8:
+    ldx $04cb
+    sta $3366,x
+    rts
+    rts
+
+_9ef0:
+    lda $0907
+    cmp #$ff
+    bne _9f02
+    ldx $3509
+    lda #$2a
+    sta $3365,x
+    inc $0907
+_9f02:
+    rts
+
+_9f03:
+    ldx $04c5
+    clc
+    lda _a2fd,x
+    adc #$ff
+    sta $35
+    lda #$00
+    adc #$fc
+    sta $36
+    rts
+_9f15:
+    ldx $04c5
+    clc
+    lda _a2fd,x
+    adc #$ff
+    sta $37
+    lda #$00
+    adc #$fc
+    sta $38
+    rts
+
+_9f27:
+    ldx $04c5
+    lda _a33b,x
+    pha
+    and #$03
+    sta $04ca
+    pla
+    lsr
+    lsr
+    pha
+    and #$07
+    sta $04c9
+    pla
+    lsr
+    lsr
+    lsr
+    clc
+    adc $3509
+    adc #$01
+    sta $04cb
+    rts
+
+_9f4a:
+.byte $de,$f2,$4c,$0c,$85,$c2,$ee,$ef
+_9f52:
+.byte $9d,$9d,$9e,$9e,$9e,$9e,$9e,$9e
+_9f5a:
+.byte $01,$03,$07,$0f
+
+_9f5e:
+    lda #$0b
+    sta $37
+    lda #$09
+    sta $38
+    ldy #$00
+    lda #$00
+    sta $04cc
+    ldx $37d9
+    lda _a02b,x
+_9f73:
+    beq _9f85
+    lsr
+    pha
+    bcs _9f7b
+    bne _9f7e
+_9f7b:
+    jsr _9f8b
+_9f7e:
+    inc $04cc
+    pla
+    jmp _9f73
+_9f85:
+    sta ($37),y
+    iny
+    sta ($37),y
+    rts
+
+_9f8b:
+    ldx $04cc
+    lda _a021,x
+    pha
+    lda _a026,x
+    pha
+    rts
+    ldx #$00
+_9f99:
+    lda _a030,x
+    sta ($37),y
+    iny
+    inx
+    cpx #$0c
+    bne _9f99
+    ldx #$00
+_9fa6:
+    lda $fd07,x
+    jsr _9fed
+    bne _9fa6
+    lda #$d2
+    sta ($37),y
+    iny
+    lda #$f1
+    sta ($37),y
+    iny
+    rts
+    lda #$83
+    sta ($37),y
+    iny
+    rts
+
+_9fbf:
+    ldx #$00
+_9fc1:
+    lda $fd27,x
+    jsr _9fed
+    bne _9fc1
+    rts
+    lda #$82
+    sta ($37),y
+    iny
+    ldx #$00
+_9fd1:
+    lda $0951,x
+    beq _9fd9
+    sta ($37),y
+    iny
+_9fd9:
+    inx
+    cpx #$08
+    bne _9fd1
+    rts
+
+_9fdf:
+    ldx #$00
+_9fe1:
+    lda _a03c,x
+    sta ($37),y
+    iny
+    inx
+    cpx #$08
+    bne _9fe1
+    rts
+
+_9fed:
+    cmp #$20
+    beq _a000
+    sty $04c7
+    jsr _a012
+    ldy $04c7
+    sec
+    sbc #$1f
+    sta ($37),y
+    iny
+_a000:
+    inx
+    cpx #$16
+    rts
+
+_a004:
+.byte $00,$3b,$28,$29,$78,$58,$30
+_a00b:
+.byte $00,$ed,$20,$20,$58,$58,$e6
+
+_a012:
+    ldy #$06
+_a014:
+    cmp _a004,y
+    beq _a01d
+    dey
+    bne _a014
+    rts
+_a01d:
+    lda _a00b,y
+    rts
+
+
+_a021:
+.byte $9f,$9f,$9f,$9f,$9f
+_a026:
+.byte $96,$b8,$be,$c9,$de
+_a02b:
+.byte $00,$13,$1b,$15,$1d
+_a030:
+.byte $ef,$b2,$80,$94,$61,$61,$d2,$cb,$cc,$00,$ef,$b2
+_a03c:
+.byte $61,$61,$ea,$f4,$61,$61,$61,$61
+
+_a044:
+    sta $04c7
+    ldx _9455
+_a04a:
+    lda _9454,x
+    sta $040c,x
+    dex
+    bne _a04a
+    lda $fd05
+    sta $0414
+    lda $fd04
+    sta $0413
+    lda $fd03
+    sta $0412
+    lda $fd02
+    sta $0415
+    lda $fd01
+    sta $0416
+    lda $fdeb
+    sta $0410
+    lda $fdec
+    sta $0411
+    ldx #$9b
+    jsr $3300
+    lda #$33
+    sta $0490
+    lda #$0d
+    sta $0492
+    lda #$04
+    sta $0493
+    jsr _a0aa
+_a094:
+    lda $040b
+    beq _a0a4
+    ldx #$1f
+    jsr $3300
+    jsr _a0aa
+    jmp _a094
+_a0a4:
+    ldx #$44
+    jsr _95ba
+    rts
+
+_a0aa:
+    lda #$03
+    sta $0491
+    ldx #$40
+    jsr _95ba
+    sta $040b
+    lda $040b
+    bne _a0d7
+    lda $04c7
+    sta $0491
+    ldx #$41
+    jsr _95ba
+    sta $040b
+    lda $040b
+    bne _a0d7
+    ldx #$43
+    jsr _95ba
+    sta $040b
+_a0d7:
+    rts
+
+_a0d8:
+    jsr _9d31
+    ldx #$58
+    jsr $3300
+    lda $37d3
+    beq _a0f3
+    lda #$0c
+    jsr $ffee
+    lda #$7d
+    sta $2d
+    ldx #$01
+    jsr $3300
+_a0f3:
+    lda #$2a
+    ldx #$01
+    jsr $3354
+    jsr _a13b
+    lda $0959
+    ldy #$32
+    ldx #$00
+    jsr _a1c6
+    lda #$00
+    ldy $fdf1
+    ldx #$01
+    jsr _a1c6
+    lda #$00
+    sta $35e5
+    lda #$01
+    sta $3571
+    lda #$22
+    sta $3577
+    ldx #$48
+    jsr _93d1
+    bcc _a12a
+    jmp _a15a
+
+_a12a:
+    jsr _92ca
+    jsr _a135
+    lda #$05
+    jmp _a044
+
+_a135:
+    jsr _a1de
+    jmp _a20b
+
+_a13b:
+    ldx $0961
+    cpx #$05
+    bcs _a14f
+    lda #$ff
+    sta $0961
+    lda _a150,x
+    pha
+    lda _a155,x
+    pha
+_a14f:
+    rts
+
+_a150:
+.byte $a1,$a1,$a1,$a1,$a1
+_a155:
+.byte $59,$8a,$9d,$4e,$4e
+
+_a15a:
+    lda #$83
+    jsr $fff4
+    cpx #$00
+    beq _a164
+    iny
+_a164:
+    sty $0959
+    tya
+    tax
+    ldy #$32
+    jsr _a2ab
+    lda $0959
+    ldy #$32
+    ldx #$00
+    jsr _a1af
+    ldx #$08
+    stx $2d
+    ldy #$09
+    lda #$00
+    ldx #$56
+    jsr $3300
+    ldx #$bd
+    jsr $3300
+    brk
+
+_a18b:
+    ldy #$7f
+    ldx #$fd
+    lda #$00
+    jsr _a2ab
+    sty $fdf1
+    lda #$00
+    ldx #$01
+    jmp _a1af
+_a19e:
+    lda #$82
+    ldy $fd06
+    ldx #$fd
+    jsr _a2ab
+    lda #$82
+    ldx #$02
+    jmp _a1af
+
+_a1af:
+    sta $2c
+    txa
+    pha
+    lda #$ff
+    sta $095a,x
+    sta $0960
+    lda $2c
+    jsr _a2b8
+    pla
+    ldx #$57
+    jmp $3300
+
+_a1c6:
+    stx $0961
+    sta $2c
+    txa
+    pha
+    lda $2c
+    jsr _a2b8
+    pla
+    ldx #$59
+    jsr $3300
+    lda #$ff
+    sta $0961
+    rts
+
+_a1de:
+    lda #$01
+    sta $04d0
+    sta $04d1
+    jsr _a24b
+    jsr _a1f7
+    bcs _a1f3
+    lda $04d1
+    bne _a1f6
+_a1f3:
+    jmp _a215
+_a1f6:
+    rts
+_a1f7:
+    ldx #$05
+    clc
+_a1fa:
+    dex
+    bmi _a205
+    lda $fd01,x
+    cmp _a206,x
+    bcc _a1fa
+_a205:
+    rts
+
+_a206:
+.byte $3c,$18,$20,$0d,$64
+
+_a20b:
+    lda #$82
+    ldy $fd06
+    ldx #$02
+    jmp _a1c6
+
+_a215:
+    lda #$0c
+    jsr $ffee
+    ldx #$23
+    stx $2d
+    ldx #$01
+    jsr $3300
+    lda #$80
+    ldy #$ff
+    ldx #$fd
+    jsr _a2ab
+    sty $fd06
+    jsr _9c50
+    jsr _a18b
+    jsr _a19e
+    jsr _a261
+    ldx #$24
+    stx $2d
+    ldx #$01
+    jsr $3300
+    lda #$00
+    sta $3419
+    brk             ; ?
+
+_a24a:
+.byte $16
+
+_a24b:
+    jsr _a26b
+    lda $04ce
+    cmp $fded
+    bne _a25b
+    lda $fd00
+    bne _a260
+_a25b:
+    lda #$00
+    sta $04d1
+_a260:
+    rts
+
+_a261:
+    jsr _a26b
+    lda $04ce
+    sta $fded
+    rts
+
+_a26b:
+    lda #$00
+    sta $04ce
+    lda #$81
+    sta $0403
+_a275:
+    lda $0403
+    sta $fcff
+    cmp #$81
+    bcc _a288
+    jsr _a28b
+    dec $0403
+    jmp _a275
+_a288:
+    jmp _a29b
+_a28b:
+    ldx #$00
+    lda $04ce
+_a290:
+    clc
+    adc $fd00,x
+    inx
+    bne _a290
+    sta $04ce
+    rts
+
+_a29b:
+    ldx #$e3
+    lda $04ce
+_a2a0:
+    clc
+    adc $fd06,x
+    dex
+    bne _a2a0
+    sta $04ce
+    rts
+
+_a2ab:
+    stx $2d
+    ldx #$29
+    jsr $3300
+    ldx #$80
+    stx $fcff
+    rts
+
+_a2b8:
+    stx $2d
+    ldx #$5b
+    jmp $3300
+
+_a2bf:
+.byte $08
+.byte $0a,$0e,$21,$21,$21,$25,$25,$28,$2c,$32,$35,$3a,$3e,$42,$46,$48
+.byte $4c,$54,$58,$5e,$62,$66,$6a,$6e,$70,$76,$7a,$7e,$82,$84,$8a,$8e
+.byte $92,$96,$98,$9e,$a2,$a6,$aa,$ac,$b2,$b6,$ba,$be,$c2,$c6,$ca,$ce
+.byte $d2,$d7,$d6,$d6,$d6,$d6,$d6,$d6,$d6,$d6,$da,$de,$e2
+
+_a2fd:
+.byte $00,$00,$00
+.byte $03,$04,$05,$01,$02,$07,$1d,$01,$e9,$02,$03,$04,$05,$1f,$27,$64
+.byte $7a,$06,$07,$08,$09,$0a,$91,$0b,$0f,$0f,$0f,$a7,$0c,$10,$10,$10
+.byte $bd,$0d,$11,$11,$11,$d3,$0e,$12,$12,$12,$13,$14,$15,$15,$15,$ea
+.byte $16,$16,$17,$17,$18,$18,$19,$19,$1a,$1b,$1c
+
+
+_a33b:
+.byte $01,$33,$03,$02,$22
+.byte $42,$22,$02,$16,$01,$03,$02,$03,$03,$03,$03,$05,$16,$16,$16,$03
+.byte $03,$03,$03,$03,$16,$03,$19,$11,$09,$16,$03,$19,$11,$09,$16,$03
+.byte $19,$11,$09,$16,$03,$19,$11,$09,$03,$03,$19,$11,$09,$00,$13,$23
+.byte $53,$63,$93,$a3,$d3,$e3,$03,$03,$03
+
+_a379:
+    lda $3749
+    sta $3747
+    cmp #$10
+    bne _a38f
+    jsr $b782
+    jsr _a3cb
+    lda #$30
+    sta $374a
+    rts
+
+_a38f:
+    lda #$00
+    sta $3749
+    lda #$3b
+    sta $3748
+    ldx #$01
+    stx $2d
+    lda #$79
+    ldy #$a4
+    ldx #$1d
+    jsr $3300
+    ldx #$0c
+    stx $2d
+    ldx #$21
+    jsr $3300
+    bvs _a3b3
+    bcc _a3c2
+_a3b3:
+    php
+    jsr _a3cb
+    plp
+    bvc _a3c2
+    jsr $b782
+    lda #$c0
+    sta $374a
+_a3c2:
+    ldx #$01
+    stx $2d
+    ldx #$1e
+    jmp $3300
+
+_a3cb:
+    jsr $bd47
+    lda #$64
+    sta $381a
+    lda #$00
+    sta $381b
+    lda #$00
+    sta $381c
+    ldx #$0e
+    stx $2d
+    lda #$1a
+    ldy #$38
+    ldx #$23
+    jmp $3300
+_a3ea:
+    lda #$01
+    jmp _a3fc
+_a3ef:
+    sta $374a
+    lda #$00
+    sta $3421
+    sta $3747
+_a3fa:
+    lda #$02
+_a3fc:
+    ldx #$0c
+    stx $2d
+    ldx #$27
+    jsr $3300
+    jmp $be12
+
+_a408:
+.byte $a4,$a4,$a4,$a6,$a8,$a9,$aa,$aa
+.byte $ab,$ac,$ac,$ae,$af,$b2,$b0,$ae
+_a418:
+.byte $ae
+_a419:
+.byte $9c,$9f,$9f,$f8,$3f,$53,$06
+.byte $37,$2a,$a5,$af,$65,$c0,$16,$c7,$57,$57
+
+_a42a:
+    jsr _a466
+    bcs _a430
+    rts
+
+_a430:
+    ldx $380b
+    lda $090b,x
+    bne _a445
+    jsr _a466
+    tax
+    bne _a443
+    ldx #$01
+    jsr _a475
+_a443:
+    sec
+    rts
+
+_a445:
+    inc $380b
+    cmp #$0e
+    bne _a453
+    lda #$61
+    jsr _a459
+    lda #$61
+_a453:
+    jsr _a459
+    jmp _a42a
+_a459:
+    clc
+    adc #$1f
+    tax
+    lda #$00
+    rol
+    tay
+    lda #$2b
+    jmp $3354
+
+_a466:
+    lda #$2f
+    jsr $3354
+    lda $340e
+    tax
+    sec
+    sbc #$3f
+    cpx #$06
+    rts
+
+_a475:
+    lda #$2a
+    jmp $3354
+    jsr $be19
+    lda $3748
+    bne _a48a
+    lda #$05
+    sta $3750
+    jmp _adf9
+_a48a:
+    lda $3747
+    and #$f0
+    lsr
+    lsr
+    lsr
+    lsr
+    tax
+    lda _a408,x
+    pha
+    lda _a419,x
+    pha
+    rts
+    jmp _a3fa
+    lda $3747
+    cmp #$20
+    bne _a4e9
+    lda $3807
+    beq _a4ad
+    rts
+
+_a4ad:
+    jsr $bd3f
+    lda #$00
+    sta $3752
+    sta $3822
+    lda #$01
+    sta $3802
+    sta $3423
+    lda $37d8
+    beq _a4c8
+    jsr $bdbb
+_a4c8:
+    lda $3753
+    bne _a4d3
+    lda #$22
+    sta $3747
+    rts
+
+_a4d3:
+    lda #$af
+    sta $3807
+    jsr $bd13
+    jsr _ae5b
+    jsr $be12
+    lda #$64
+    sta $3819
+    jmp _ae54
+
+_a4e9:
+    cmp #$21
+    bne _a521
+    lda $3807
+    bne _a508
+    jsr $bce0
+    jsr $bd01
+    lda #$3c
+    sta $3807
+    lda #$64
+    sta $3819
+    lda #$20
+    sta $3747
+    rts
+
+_a508:
+    jsr $bd2a
+    bcc _a513
+    lda #$64
+    sta $3819
+    rts
+_a513:
+    lda $3819
+    beq _a519
+    rts
+
+_a519:
+    lda #$00
+    sta $3421
+    jmp _ae54
+_a521:
+    cmp #$22
+    bne _a542
+    jsr $bd2a
+    bcc _a541
+    lda #$14
+    jsr $3354
+    lda #$15
+    jsr $3354
+    lda #$06
+    sta $37fb
+    lda #$06
+    sta $3807
+    jmp _ae54
+_a541:
+    rts
+
+_a542:
+    cmp #$23
+    bne _a565
+    lda $3807
+    bne _a541
+    jsr $b9f5
+    lda $3421
+    cmp #$ff
+    bne _a541
+    lda #$09
+    sta $3804
+    lda #$00
+    sta $3421
+    jsr $b7b4
+    jmp _ae54
+
+_a565:
+    cmp #$24
+    bne _a5cc
+    lda $3804
+    bne _a584
+_a56e:
+    jsr $be12
+    lda #$23
+    sta $3747
+    lda #$00
+    sta $3421
+    inc $343f
+    dec $37fb
+    beq _a5c1
+_a583:
+    rts
+
+_a584:
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    bne _a583
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _a59c
+    jsr $b7b4
+    rts
+
+_a59c:
+    lda $342a
+    cmp #$02
+    beq _a5c4
+    cmp #$01
+    bne _a56e
+    lda $3423
+    bne _a5ad
+    rts
+
+_a5ad:
+    lda $3424
+    cmp #$01
+    bne _a5c1
+    lda #$00
+    sta $3808
+    lda #$0c
+    sta $37fb
+    jmp _ae54
+
+_a5c1:
+    jmp _adf4
+
+_a5c4:
+    lda #$01
+    sta $3750
+    jmp _adf9
+
+_a5cc:
+    cmp #$25
+    bne _a624
+    jsr $bdc0
+    lda #$ff
+    sta $3822
+    lda $379e
+    beq _a5e2
+    lda #$00
+    sta $3822
+_a5e2:
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _a5ed
+    rts
+
+_a5ed:
+    lda #$01
+    sta $3808
+    sta $3801
+    lda #$0d
+    sta $37fb
+    lda #$01
+    sta $3421
+    lda $379e
+    beq _a609
+    lda #$00
+    sta $3421
+_a609:
+    dec $37fb
+    beq _a621
+    jsr $b32b
+    lda #$00
+    sta $3421
+    lda #$08
+    sta $3804
+    lda #$26
+    sta $3747
+    rts
+
+_a621:
+    jmp _adf4
+_a624:
+    cmp #$26
+    bne _a63b
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _a633
+    rts
+
+_a633:
+    lda #$00
+    sta $3421
+    jmp _ae54
+
+_a63b:
+    cmp #$27
+    bne _a680
+    lda $3421
+    cmp #$ff
+    beq _a65a
+    jsr _ae5b
+    lda $3804
+    bne _a659
+    jsr $be12
+    lda #$00
+    sta $3421
+    jmp _a609
+_a659:
+    rts
+
+_a65a:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcc _a659
+    lda $342a
+    cmp #$02
+    beq _a67d
+    cmp #$05
+    bne _a659
+    lda $3422
+    cmp $3801
+    bne _a609
+    inc $3801
+    jmp _ae54
+
+_a67d:
+    jmp _ae31
+
+_a680:
+    cmp #$28
+    bne _a6b5
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _a68f
+    rts
+
+_a68f:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _a69a
+    rts
+
+_a69a:
+    lda $342a
+    cmp #$02
+    bne _a6a4
+    jmp _ae31
+_a6a4:
+    cmp #$04
+    bne _a6c9
+    lda $0b01
+    cmp #$01
+    bne _a6c9
+    jsr $b491
+    jmp _ae54
+
+_a6b5:
+    cmp #$29
+    bne _a6d7
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _a6c4
+    rts
+
+_a6c4:
+    lda #$40
+    jmp _a3ef
+_a6c9:
+    lda #$00
+    sta $3808
+    sta $3421
+    lda #$2a
+    sta $3747
+    rts
+
+_a6d7:
+    cmp #$2a
+    bne _a6e6
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _a6e9
+    rts
+
+_a6e6:
+    jmp _ae58
+
+_a6e9:
+    lda #$01
+    sta $3808
+    lda #$00
+    sta $3421
+    lda #$28
+    sta $3747
+    rts
+    lda $3747
+    cmp #$30
+    bne _a737
+    lda #$ff
+    sta $3822
+    lda $379e
+    beq _a70f
+    lda #$00
+    sta $3822
+_a70f:
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _a71a
+    rts
+
+_a71a:
+    lda #$0c
+    sta $37fb
+    lda #$01
+    ldx $379e
+    bne _a729
+    jmp _a72b
+_a729:
+    lda #$00
+_a72b:
+    sta $3421
+    jsr $b32b
+    lda #$31
+    sta $3747
+    rts
+
+_a737:
+    cmp #$31
+    bne _a753
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _a746
+    rts
+_a746:
+    lda #$08
+    sta $3804
+    lda #$00
+    sta $3421
+    jmp _ae54
+_a753:
+    cmp #$32
+    bne _a7b7
+    lda $3804
+    bne _a767
+    jsr $be12
+    dec $37fb
+    bne _a729
+    jmp _adf4
+_a767:
+    lda $3421
+    cmp #$ff
+    beq _a771
+    jmp _ae5b
+
+_a771:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _a77c
+    rts
+_a77c:
+    lda $342a
+    cmp #$02
+    bne _a786
+_a783:
+    jmp _ae31
+_a786:
+    cmp #$05
+    beq _a7a6
+    cmp #$04
+    bne _a79c
+    lda $3422
+    inc $3808
+    cmp $3808
+    bne _a79d
+    dec $3808
+_a79c:
+    rts
+
+_a79d:
+    dec $3808
+    lda #$39
+    sta $3747
+    rts
+
+_a7a6:
+    lda $3422
+    cmp $3801
+    beq _a7b1
+    jmp _a729
+_a7b1:
+    inc $3801
+    jmp _ae54
+_a7b7:
+    cmp #$33
+    bne _a823
+    lda $3421
+    cmp #$ff
+    beq _a7c5
+    jmp _ae5b
+_a7c5:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _a7d0
+    rts
+
+_a7d0:
+    lda $342a
+    cmp #$02
+    beq _a783
+    cmp #$04
+    bne _a7ee
+    lda $3422
+    inc $3808
+    cmp $3808
+    beq _a7ef
+    dec $3808
+    lda #$50
+    sta $3747
+_a7ee:
+    rts
+
+_a7ef:
+    lda $379e
+    beq _a803
+    lda $0b01
+    cmp #$03
+    bne _a819
+    jsr $b675
+    lda #$fe
+    jmp _a3ef
+_a803:
+    lda $0b01
+    cmp #$02
+    beq _a81e
+    cmp #$ff
+    bne _a819
+    dec $374c
+    dec $374c
+    lda #$70
+    jmp _a3ef
+_a819:
+    lda #$fa
+    jmp _a3ef
+_a81e:
+    lda #$90
+    jmp _a3ef
+
+_a823:
+    cmp #$39
+    bne _a832
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _a835
+    rts
+
+_a832:
+    jmp _ae58
+_a835:
+    lda #$00
+    sta $3421
+    lda #$32
+    sta $3747
+    rts
+
+_a840:
+    lda $3747
+    cmp #$40
+    bne _a890
+    lda #$0c
+    sta $37fb
+    lda $379e
+    beq _a859
+    lda #$05
+    sta $0b01
+    jmp _a85e
+_a859:
+    lda #$ff
+    sta $0b01
+_a85e:
+    lda $379d
+    cmp #$54
+    bne _a86e
+    lda $379c
+    and #$0f
+    cmp #$02
+    beq _a87f
+_a86e:
+    inc $374c
+    inc $374c
+    lda #$01
+    sta $0b00
+    jsr _a930
+    jmp _ae54
+_a87f:
+    ldx $374c
+    inx
+    stx $0b00
+    inx
+    stx $374c
+    jsr _a930
+    jmp _ae54
+
+_a890:
+    cmp #$41
+    bne _a8ac
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _a89f
+    rts
+_a89f:
+    lda #$00
+    sta $3421
+    lda #$08
+    sta $3804
+    jmp _ae54
+_a8ac:
+    cmp #$42
+    bne _a916
+    lda $3804
+    bne _a8cd
+_a8b5:
+    jsr $be12
+    lda #$41
+    sta $3747
+    lda #$00
+    sta $3421
+    dec $37fb
+    bne _a8ca
+    jmp _adf4
+_a8ca:
+    jmp _a942
+
+_a8cd:
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _a8d8
+    rts
+_a8d8:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _a8e3
+    rts
+_a8e3:
+    lda $342a
+    cmp #$02
+    bne _a8ed
+    jmp _ae31
+_a8ed:
+    cmp #$05
+    beq _a906
+    cmp #$04
+    beq _a900
+    lda #$fe
+    sta $3750
+    jmp _adf9
+
+_a8fd:
+    jmp _ae58
+
+_a900:
+    lda #$49
+    sta $3747
+    rts
+
+_a906:
+    lda $3422
+    cmp $3801
+    bne _a8b5
+    inc $3801
+    lda #$60
+    jmp _a3ef
+_a916:
+    cmp #$49
+    bne _a8fd
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _a925
+    rts
+_a925:
+    lda #$00
+    sta $3421
+    lda #$42
+    sta $3747
+    rts
+
+_a930:
+    ldx #$00
+_a932:
+    lda $0b00,x
+    sta $3824,x
+    inx
+    bne _a932
+    lda $374c
+    sta $380f
+    rts
+
+_a942:
+    ldx #$00
+_a944:
+    lda $3824,x
+    sta $0b00,x
+    inx
+    bne _a944
+    lda $380f
+    sta $374c
+    rts
+    lda $3747
+    cmp #$50
+    bne _a968
+    lda #$00
+    sta $3421
+    lda #$0c
+    sta $37fb
+    jmp _ae54
+
+_a968:
+    cmp #$51
+    bne _a97f
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _a977
+    rts
+_a977:
+    lda #$00
+    sta $3421
+    jmp _ae54
+_a97f:
+    cmp #$52
+    bne _a98e
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _a991
+    rts
+_a98e:
+    jmp _ae58
+_a991:
+    jsr $bdfb
+    bcc _a9b2
+    lda $342a
+    cmp #$02
+    bne _a9a0
+_a99d:
+    jmp _ae31
+_a9a0:
+    cmp #$04
+    bne _a9b2
+    lda $3422
+    inc $3808
+    cmp $3808
+    beq _a9c5
+    dec $3808
+_a9b2:
+    jsr $be12
+    lda #$50
+    sta $3747
+    lda #$00
+    sta $3421
+    dec $37fb
+    beq _a99d
+    rts
+
+_a9c5:
+    lda $0b01
+    cmp #$02
+    beq _a9f8
+    lda $379e
+    beq _a9e6
+    lda $0b01
+    cmp #$03
+    beq _a9e3
+    cmp #$06
+    beq _a9fd
+    cmp #$05
+    beq _a9f3
+    jmp $aa02
+
+_a9e3:
+    jmp $a7fb
+
+_a9e6:
+    lda $0b01
+    cmp #$ff
+    bne _aa02
+    dec $374c
+    dec $374c
+_a9f3:
+    lda #$70
+    jmp _a3ef
+_a9f8:
+    lda #$90
+    jmp _a3ef
+_a9fd:
+    lda #$fd
+    jmp _a3ef
+_aa02:
+    lda #$fe
+    jmp _a3ef
+    lda $3747
+    cmp #$60
+    bne $aa26
+    jsr $b8f3
+    lda $3421
+    cmp #$ff
+    beq _aa19
+    rts
+
+_aa19:
+    lda #$00
+    sta $3421
+    lda #$c8
+    sta $3807
+    jmp _ae54
+    cmp #$61
+    bne _aa30
+    lda $3807
+    beq _aa33
+    rts
+
+_aa30:
+    jmp _ae58
+
+_aa33:
+    lda #$d0
+    jmp _a3ef
+    lda $3747
+    cmp #$70
+    bne _aa5b
+    lda #$00
+    sta $3421
+    lda #$0c
+    sta $37fb
+    lda #$ff
+    sta $3822
+    lda $379e
+    beq _aa58
+    lda #$00
+    sta $3822
+_aa58:
+    jmp _ae54
+
+_aa5b:
+    cmp #$71
+    bne _aa7f
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _aa6a
+    rts
+
+_aa6a:
+    lda $379e
+    bne _aa77
+    lda #$01
+    sta $3421
+    jmp _ae54
+
+_aa77:
+    lda #$00
+    sta $3421
+    jmp _ae54
+_aa7f:
+    cmp #$72
+    bne _aa8e
+    jsr $b629
+    lda #$00
+    sta $3421
+    jmp _ae54
+
+_aa8e:
+    cmp #$73
+    bne _aaaa
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _aa9d
+    rts
+
+_aa9d:
+    lda #$00
+    sta $3421
+    lda #$08
+    sta $3804
+    jmp _ae54
+
+_aaaa:
+    cmp #$74
+    bne _aaf4
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _aabe
+    lda $3804
+    beq _aad6
+    rts
+
+_aabe:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcc _aad6
+    lda $342a
+    cmp #$05
+    beq _aae9
+    cmp #$02
+    bne _aad6
+    jmp _ae31
+_aad6:
+    lda #$00
+    sta $3421
+    lda #$72
+    sta $3747
+    dec $37fb
+    bne _aae8
+    jmp _adf4
+_aae8:
+    rts
+
+_aae9:
+    lda #$00
+    sta $3421
+    inc $3747
+    jmp _aaf8
+_aaf4:
+    cmp #$75
+    bne _ab19
+_aaf8:
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _ab03
+    rts
+_ab03:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _ab0e
+    rts
+
+_ab0e:
+    lda $342a
+    cmp #$02
+    beq _ab16
+    rts
+
+_ab16:
+    jmp _ae54
+
+_ab19:
+    cmp #$76
+    bne _ab28
+    jsr $b782
+    lda #$80
+    sta $374a
+    jmp _a3ea
+_ab28:
+    jmp _ae58
+    lda $3747
+    cmp #$80
+    bne _ab42
+    jsr $b629
+    lda #$00
+    sta $3421
+    lda #$0c
+    sta $37fb
+    jmp _ae54
+_ab42:
+    cmp #$81
+    bne _ab5e
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _ab51
+    rts
+
+_ab51:
+    lda #$00
+    sta $3421
+    lda #$08
+    sta $3804
+    jmp _ae54
+_ab5e:
+    cmp #$82
+    bne _abdd
+    lda $3804
+    bne _ab80
+_ab67:
+    jsr $be12
+    lda #$81
+    sta $3747
+    jsr $b629
+    lda #$00
+    sta $3421
+    dec $37fb
+    beq _ab7d
+    rts
+_ab7d:
+    jmp _adf4
+
+_ab80:
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _ab8b
+    rts
+_ab8b:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _ab98
+    jmp _ab67
+_ab98:
+    lda $342a
+    cmp #$04
+    beq _abc0
+    cmp #$05
+    beq _abad
+    cmp #$02
+    bne _abaa
+    jmp _ae31
+
+_abaa:
+    jmp _ac32
+
+_abad:
+    lda $3422
+    cmp $3801
+    bne _ab67
+    inc $3801
+    lda #$83
+    sta $3747
+    jmp _abdd
+_abc0:
+    inc $3808
+    lda $3422
+    cmp $3808
+    beq _abd1
+    dec $3808
+    jmp _ab67
+
+_abd1:
+    lda $0b01
+    cmp #$02
+    beq _ac1d
+    lda #$70
+    jmp _a3ef
+
+_abdd:
+    cmp #$83
+    bne _ac23
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _abec
+    rts
+_abec:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _abf7
+    rts
+_abf7:
+    lda $342a
+    cmp #$04
+    beq _ac06
+    cmp #$02
+    bne _ac05
+    jmp _ae31
+_ac05:
+    rts
+
+_ac06:
+    inc $3808
+    lda $3422
+    cmp $3808
+    beq _ac15
+    dec $3808
+    rts
+
+_ac15:
+    lda $0b01
+    cmp #$02
+    beq _ac1d
+    rts
+
+_ac1d:
+    lda #$84
+    sta $3747
+    rts
+
+_ac23:
+    cmp #$84
+    bne _ac42
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _ac32
+    rts
+
+_ac32:
+    lda #$00
+    sta $3421
+    lda #$ff
+    sta $3750
+    lda #$85
+    sta $3747
+    rts
+
+_ac42:
+    cmp #$85
+    bne _ac6a
+    jsr $b8f3
+    lda $3421
+    cmp #$ff
+    beq _ac51
+    rts
+
+_ac51:
+    lda $3752
+    beq _ac9b
+    asl
+    asl
+    clc
+    adc $3752
+    sta $3804
+    lda #$00
+    sta $3421
+    lda #$86
+    sta $3747
+    rts
+
+_ac6a:
+    cmp #$86
+    beq _ac71
+    jmp _ae58
+_ac71:
+    lda $3804
+    beq _ac9b
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _ac81
+_ac80:
+    rts
+_ac81:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcc _ac80
+    lda $342a
+    cmp #$01
+    beq _ac98
+    lda #$84
+    sta $3747
+    rts
+
+_ac98:
+    jmp _ad79
+
+_ac9b:
+    jsr $b782
+    lda #$a0
+    sta $374a
+    jmp _a3ea
+    lda #$00
+    sta $3749
+    lda #$e0
+    jmp _a3ef
+    lda $3747
+    cmp #$a0
+    bne _acef
+    jsr $bdf0
+    jsr $bd3f
+    lda #$00
+    sta $3421
+    jsr $b7b4
+    lda #$01
+    sta $3423
+    sta $3802
+    lda #$03
+    sta $37fb
+    lda #$00
+    sta $380b
+    sta $3752
+    ldx #$16
+    lda #$20
+_acde:
+    sta $3769,x
+    dex
+    bne _acde
+    lda #$3c
+    sta $3748
+    jsr _ae5b
+    jmp _ae54
+
+_acef:
+    cmp #$a1
+    beq _acf6
+    jmp _ad8e
+_acf6:
+    lda $3751
+    beq _ad46
+    lda $37d3
+    bne _ad46
+    lda $3748
+    cmp #$36
+    beq _ad35
+    lda $3748
+    cmp #$23
+    bcc _ad43
+    cmp #$32
+    bne _ad46
+    dec $3748
+    ldx #$13
+    stx $2d
+    ldx #$01
+    jsr $3300
+    lda #$05
+    sta $2d
+    ldx #$02
+    jsr $3300
+    ldx #$fe
+    jsr _a475
+    jsr _a42a
+    inc $380b
+    jmp _ad46
+_ad35:
+    dec $3748
+    lda $37d7
+    beq $ad46
+    jsr $bdbb
+    jmp _ad46
+
+_ad43:
+    jsr $a42a
+_ad46:
+    lda $3421
+    cmp #$ff
+    beq _ad50
+    jmp _ae5b
+_ad50:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _ad62
+_ad5a:
+    lda #$00
+    sta $3421
+    jmp $b7b4
+_ad62:
+    lda $342a
+    cmp #$01
+    beq _ad71
+    lda #$01
+    sta $3750
+_ad6e:
+    jmp _adf9
+_ad71:
+    dec $37fb
+    bne _ad79
+    jmp _adf4
+_ad79:
+    lda $3423
+    beq _ad5a
+    lda $3424
+    cmp #$01
+    bne _ad6e
+    lda #$a2
+    sta $3747
+    jsr $bdc0
+    rts
+
+_ad8e:
+    cmp #$a2
+    bne _adad
+    jsr $b9f5
+    lda $3421
+    cmp #$ff
+    beq _ad9d
+    rts
+_ad9d:
+    lda #$00
+    sta $3421
+    lda #$01
+    sta $3801
+    sta $3808
+    jmp _ae54
+_adad:
+    cmp #$a3
+    bne _ade8
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _adbc
+    rts
+_adbc:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcc _add8
+    lda $342a
+    cmp #$04
+    beq _add9
+    cmp #$01
+    beq _ad71
+    cmp #$02
+    bne _add8
+    jmp _ae31
+_add8:
+    rts
+
+_add9:
+    lda $3422
+    cmp $3808
+    beq _ade2
+    rts
+
+_ade2:
+    jsr $b491
+    jmp _ae54
+_ade8:
+    cmp #$a4
+    bne _adf1
+    lda #$50
+    jmp $a3ef
+_adf1:
+    jmp _ae26
+_adf4:
+    lda #$04
+    sta $3750
+_adf9:
+    lda $3747
+    cmp #$a9
+    bne _ae03
+    jmp _ae42
+_ae03:
+    lda $3421
+    sta $380d
+    lda $3747
+    sta $380c
+    jsr $be12
+    lda #$05
+    sta $3748
+    lda #$00
+    sta $3421
+    lda #$a9
+    sta $3747
+    lda #$b0
+    sta $374a
+_ae26:
+    jsr $b8f3
+    lda $3421
+    cmp #$ff
+    beq _ae42
+    rts
+
+_ae31:
+    lda $3421
+    sta $380d
+    lda $3747
+    sta $380c
+    lda #$80
+    sta $374a
+_ae42:
+    jsr $b782
+    lda $380c
+    sta $3747
+    lda $380d
+    sta $3421
+    jmp _a3ea
+_ae54:
+    inc $3747
+    rts
+_ae58:
+    brk
+    bpl _ae5b
+_ae5b:
+    lda $3421
+    bne _ae65
+    ldx #$2c
+    jmp $3300
+_ae65:
+    rts
+
+_ae66:
+    lda $3747
+    cmp #$b0
+    bne _ae7d
+    jsr $b6cf
+    lda #$00
+    sta $3421
+    lda #$0c
+    sta $37fb
+    jmp _ae54
+_ae7d:
+    cmp #$b1
+    bne _ae99
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _ae8c
+    rts
+_ae8c:
+    lda #$00
+    sta $3421
+    lda #$08
+    sta $3804
+    jmp _ae54
+_ae99:
+    cmp #$b2
+    beq _aea0
+    jmp _af1b
+_aea0:
+    lda $3804
+    bne _aebe
+_aea5:
+    jsr $be12
+    lda #$b1
+    sta $3747
+    jsr $b6cf
+    lda #$00
+    sta $3421
+    dec $37fb
+    beq _aebb
+    rts
+_aebb:
+    jmp $adf4
+
+_aebe:
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _aec9
+    rts
+_aec9:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _aed4
+    rts
+_aed4:
+    lda $342a
+    cmp #$04
+    beq _aefd
+    cmp #$05
+    beq _aee7
+    cmp #$02
+    bne _aee6
+    jmp _ae31
+_aee6:
+    rts
+_aee7:
+    lda $3422
+    cmp $3801
+    bne _aefa
+    inc $3801
+    lda #$b3
+    sta $3747
+    jmp _af1b
+_aefa:
+    jmp _aea5
+_aefd:
+    lda $3422
+    inc $3808
+    cmp $3808
+    bne _af0c
+    dec $3808
+    rts
+
+_af0c:
+    dec $3808
+    lda $3747
+    sta $3823
+    lda #$b6
+    sta $3747
+    rts
+
+_af1b:
+    cmp #$b3
+    bne _af70
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _af2a
+    rts
+_af2a:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _af37
+    jmp _af54
+_af37:
+    lda $342a
+    cmp #$04
+    beq _af46
+    cmp #$02
+    bne _af45
+    jmp _ae31
+_af45:
+    rts
+
+_af46:
+    inc $3808
+    lda $3422
+    cmp $3808
+    beq _af60
+    dec $3808
+_af54:
+    lda $3747
+    sta $3823
+    lda #$b6
+    sta $3747
+    rts
+
+_af60:
+    lda $0b01
+    sta $342f
+    cmp #$04
+    bne _af6d
+    jsr $b648
+_af6d:
+    jmp _ae54
+
+_af70:
+    cmp #$b4
+    bne _af9d
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _af7f
+    rts
+_af7f:
+    lda #$00
+    sta $3421
+    lda $342f
+    cmp #$04
+    bne _af90
+    lda #$20
+    jmp $a3ef
+_af90:
+    cmp #$ff
+    beq _af98
+    cmp #$03
+    bcs _afac
+_af98:
+    lda #$fa
+    jmp $a3ef
+_af9d:
+    cmp #$b6
+    bne _afbe
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _afb2
+    rts
+
+_afac:
+    lda #$b3
+    sta $3747
+    rts
+
+_afb2:
+    lda $3823
+    sta $3747
+    lda #$00
+    sta $3421
+    rts
+
+_afbe:
+    jmp _ae58
+    lda $3747
+    cmp #$c0
+    bne _afe6
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _afd3
+    rts
+_afd3:
+    lda #$0c
+    sta $37fb
+_afd8:
+    jsr $b71d
+    lda #$00
+    sta $3421
+    lda #$c1
+    sta $3747
+    rts
+
+_afe6:
+    cmp #$c1
+    bne $b002
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _aff5
+    rts
+_aff5:
+    lda #$08
+    sta $3804
+    lda #$00
+    sta $3421
+    jmp _ae54
+    cmp #$c2
+    bne $b04d
+    lda $3804
+    bne $b016
+    jsr $be12
+    dec $37fb
+    bne _afd8
+    jmp _adf4
+    lda $3421
+    cmp #$ff
+    beq $b020
+    jmp _ae5b
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs $b02b
+    rts
