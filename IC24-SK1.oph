@@ -110,7 +110,7 @@ _8091:
 
 _809e:
     pla
-    jmp ($3f00)
+    jmp ($3f00)     ; Jump to the address stored in $3f00 and $3f01.
 
 _80a2:
     lda #$08
@@ -171,6 +171,7 @@ _80fe:
 _8113:
     pla
     lda #$00
+_8116:
     rts
 
 ; Service call &06 (BRK) handler (EAUG, p156)
@@ -1299,8 +1300,8 @@ _8768:
     sta $fc7d
     sta $fc6e
     sta $fc6d
-    lda #$16
-    sta $3f00
+    lda #$16        ; Stores the address $8116 in $3f00.
+    sta $3f00       ; See _809e for where this is used.
     lda #$81
     sta $3f01
     jsr _8365
@@ -2111,7 +2112,7 @@ _8d32:
     lda $84
     beq _8d3f
     lda ($82),y
-    jsr $ffe3
+    jsr OSASCI
 _8d3f:
     jmp _8d2c
 _8d42:
@@ -4338,10 +4339,11 @@ _9f85:
 
 _9f8b:
     ldx $04cc
-    lda _a021,x
+    lda _a021,x     ; Load address of code from two spans of data.
+    pha             ; These refer to addresses just before routines in the.
+    lda _a026,x     ; following section of code.
     pha
-    lda _a026,x
-    pha
+_9f96:              ; In look-up tables at _a021 and _a026.
     rts
     ldx #$00
 _9f99:
@@ -4362,10 +4364,12 @@ _9fa6:
     lda #$f1
     sta ($37),y
     iny
+_9fb8:              ; In look-up tables at _a021 and _a026.
     rts
     lda #$83
     sta ($37),y
     iny
+_9fbe:              ; In look-up tables at _a021 and _a026.
     rts
 
 _9fbf:
@@ -4374,6 +4378,7 @@ _9fc1:
     lda $fd27,x
     jsr _9fed
     bne _9fc1
+_9fc9:              ; In look-up tables at _a021 and _a026.
     rts
     lda #$82
     sta ($37),y
@@ -4388,6 +4393,7 @@ _9fd9:
     inx
     cpx #$08
     bne _9fd1
+_9fde:              ; In look-up tables at _a021 and _a026.
     rts
 
 _9fdf:
@@ -4575,7 +4581,7 @@ _a155:
 
 _a15a:
     lda #$83
-    jsr $fff4
+    jsr OSBYTE
     cpx #$00
     beq _a164
     iny
@@ -4885,7 +4891,7 @@ _a42a:
 
 _a430:
     ldx $380b
-    lda $090b,x
+    lda $090b,x     ; Page &09 can be used as an RS423 buffer.
     bne _a445
     jsr _a466
     tax
