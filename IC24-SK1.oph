@@ -1,9 +1,10 @@
 ; Disassembly and reassembly of the IC24-SK1.rom file for the BT Merlin M2105
 ; terminal.
 
-.alias OSBYTE $fff4
 .alias OSASCI $ffe3
 .alias OSNEWL $ffe7
+.alias OSBYTE $fff4
+.alias OSCLI  $fff7
 
 .alias EVNTV $0220
 .alias INSV  $022a
@@ -4849,7 +4850,7 @@ _a379:
     sta $3747
     cmp #$10
     bne _a38f
-    jsr $b782
+    jsr _b782
     jsr _a3cb
     lda #$30
     sta $374a
@@ -4877,7 +4878,7 @@ _a3b3:
     jsr _a3cb
     plp
     bvc _a3c2
-    jsr $b782
+    jsr _b782
     lda #$c0
     sta $374a
 _a3c2:
@@ -4887,7 +4888,7 @@ _a3c2:
     jmp $3300
 
 _a3cb:
-    jsr $bd47
+    jsr _bd47
     lda #$64
     sta $381a
     lda #$00
@@ -4915,7 +4916,7 @@ _a3fc:
     stx $2d
     ldx #$27
     jsr $3300
-    jmp $be12
+    jmp _be12
 
 _a408:
 .byte $a4,$a4,$a4,$a6,$a8,$a9,$aa,$aa
@@ -4977,7 +4978,7 @@ _a466:
 _a475:
     lda #$2a
     jmp $3354
-    jsr $be19
+    jsr _be19
     lda $3748
     bne _a48a
     lda #$05
@@ -5005,7 +5006,7 @@ _a48a:
     rts
 
 _a4ad:
-    jsr $bd3f
+    jsr _bd3f
     lda #$00
     sta $3752
     sta $3822
@@ -5014,7 +5015,7 @@ _a4ad:
     sta $3423
     lda $37d8
     beq _a4c8
-    jsr $bdbb
+    jsr _bdbb
 _a4c8:
     lda $3753
     bne _a4d3
@@ -5025,9 +5026,9 @@ _a4c8:
 _a4d3:
     lda #$af
     sta $3807
-    jsr $bd13
+    jsr _bd13
     jsr _ae5b
-    jsr $be12
+    jsr _be12
     lda #$64
     sta $3819
     jmp _ae54
@@ -5037,8 +5038,8 @@ _a4e9:
     bne _a521
     lda $3807
     bne _a508
-    jsr $bce0
-    jsr $bd01
+    jsr _bce0
+    jsr _bd01
     lda #$3c
     sta $3807
     lda #$64
@@ -5048,7 +5049,7 @@ _a4e9:
     rts
 
 _a508:
-    jsr $bd2a
+    jsr _bd2a
     bcc _a513
     lda #$64
     sta $3819
@@ -5065,7 +5066,7 @@ _a519:
 _a521:
     cmp #$22
     bne _a542
-    jsr $bd2a
+    jsr _bd2a
     bcc _a541
     lda #$14
     jsr $3354
@@ -5084,7 +5085,7 @@ _a542:
     bne _a565
     lda $3807
     bne _a541
-    jsr $b9f5
+    jsr _b9f5
     lda $3421
     cmp #$ff
     bne _a541
@@ -5092,7 +5093,7 @@ _a542:
     sta $3804
     lda #$00
     sta $3421
-    jsr $b7b4
+    jsr _b7b4
     jmp _ae54
 
 _a565:
@@ -5101,7 +5102,7 @@ _a565:
     lda $3804
     bne _a584
 _a56e:
-    jsr $be12
+    jsr _be12
     lda #$23
     sta $3747
     lda #$00
@@ -5119,9 +5120,9 @@ _a584:
     bne _a583
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _a59c
-    jsr $b7b4
+    jsr _b7b4
     rts
 
 _a59c:
@@ -5155,7 +5156,7 @@ _a5c4:
 _a5cc:
     cmp #$25
     bne _a624
-    jsr $bdc0
+    jsr _bdc0
     lda #$ff
     sta $3822
     lda $379e
@@ -5163,7 +5164,7 @@ _a5cc:
     lda #$00
     sta $3822
 _a5e2:
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _a5ed
@@ -5198,7 +5199,7 @@ _a621:
 _a624:
     cmp #$26
     bne _a63b
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _a633
@@ -5218,7 +5219,7 @@ _a63b:
     jsr _ae5b
     lda $3804
     bne _a659
-    jsr $be12
+    jsr _be12
     lda #$00
     sta $3421
     jmp _a609
@@ -5228,7 +5229,7 @@ _a659:
 _a65a:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcc _a659
     lda $342a
     cmp #$02
@@ -5256,7 +5257,7 @@ _a680:
 _a68f:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _a69a
     rts
 
@@ -5277,7 +5278,7 @@ _a6a4:
 _a6b5:
     cmp #$29
     bne _a6d7
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _a6c4
@@ -5297,7 +5298,7 @@ _a6c9:
 _a6d7:
     cmp #$2a
     bne _a6e6
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _a6e9
@@ -5324,7 +5325,7 @@ _a6e9:
     lda #$00
     sta $3822
 _a70f:
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _a71a
@@ -5349,7 +5350,7 @@ _a72b:
 _a737:
     cmp #$31
     bne _a753
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _a746
@@ -5365,7 +5366,7 @@ _a753:
     bne _a7b7
     lda $3804
     bne _a767
-    jsr $be12
+    jsr _be12
     dec $37fb
     bne _a729
     jmp _adf4
@@ -5378,7 +5379,7 @@ _a767:
 _a771:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _a77c
     rts
 _a77c:
@@ -5424,7 +5425,7 @@ _a7b7:
 _a7c5:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _a7d0
     rts
 
@@ -5451,7 +5452,7 @@ _a7ef:
     cmp #$03
     bne _a819
 _a7fb:
-    jsr $b675
+    jsr _b675
     lda #$fe
     jmp _a3ef
 _a803:
@@ -5474,7 +5475,7 @@ _a81e:
 _a823:
     cmp #$39
     bne _a832
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _a835
@@ -5530,7 +5531,7 @@ _a87f:
 _a890:
     cmp #$41
     bne _a8ac
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _a89f
@@ -5547,7 +5548,7 @@ _a8ac:
     lda $3804
     bne _a8cd
 _a8b5:
-    jsr $be12
+    jsr _be12
     lda #$41
     sta $3747
     lda #$00
@@ -5567,7 +5568,7 @@ _a8cd:
 _a8d8:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _a8e3
     rts
 _a8e3:
@@ -5602,7 +5603,7 @@ _a906:
 _a916:
     cmp #$49
     bne _a8fd
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _a925
@@ -5647,7 +5648,7 @@ _a944:
 _a968:
     cmp #$51
     bne _a97f
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _a977
@@ -5667,7 +5668,7 @@ _a97f:
 _a98e:
     jmp _ae58
 _a991:
-    jsr $bdfb
+    jsr _bdfb
     bcc _a9b2
     lda $342a
     cmp #$02
@@ -5683,7 +5684,7 @@ _a9a0:
     beq _a9c5
     dec $3808
 _a9b2:
-    jsr $be12
+    jsr _be12
     lda #$50
     sta $3747
     lda #$00
@@ -5731,7 +5732,7 @@ _aa02:
     lda $3747
     cmp #$60
     bne _aa26
-    jsr $b8f3
+    jsr _b8f3
     lda $3421
     cmp #$ff
     beq _aa19
@@ -5775,7 +5776,7 @@ _aa58:
 _aa5b:
     cmp #$71
     bne _aa7f
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _aa6a
@@ -5795,7 +5796,7 @@ _aa77:
 _aa7f:
     cmp #$72
     bne _aa8e
-    jsr $b629
+    jsr _b629
     lda #$00
     sta $3421
     jmp _ae54
@@ -5803,7 +5804,7 @@ _aa7f:
 _aa8e:
     cmp #$73
     bne _aaaa
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _aa9d
@@ -5830,7 +5831,7 @@ _aaaa:
 _aabe:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcc _aad6
     lda $342a
     cmp #$05
@@ -5866,7 +5867,7 @@ _aaf8:
 _ab03:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _ab0e
     rts
 
@@ -5882,7 +5883,7 @@ _ab16:
 _ab19:
     cmp #$76
     bne _ab28
-    jsr $b782
+    jsr _b782
     lda #$80
     sta $374a
     jmp _a3ea
@@ -5891,7 +5892,7 @@ _ab28:
     lda $3747
     cmp #$80
     bne _ab42
-    jsr $b629
+    jsr _b629
     lda #$00
     sta $3421
     lda #$0c
@@ -5900,7 +5901,7 @@ _ab28:
 _ab42:
     cmp #$81
     bne _ab5e
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _ab51
@@ -5918,10 +5919,10 @@ _ab5e:
     lda $3804
     bne _ab80
 _ab67:
-    jsr $be12
+    jsr _be12
     lda #$81
     sta $3747
-    jsr $b629
+    jsr _b629
     lda #$00
     sta $3421
     dec $37fb
@@ -5939,7 +5940,7 @@ _ab80:
 _ab8b:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _ab98
     jmp _ab67
 _ab98:
@@ -5989,7 +5990,7 @@ _abdd:
 _abec:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _abf7
     rts
 _abf7:
@@ -6024,7 +6025,7 @@ _ac1d:
 _ac23:
     cmp #$84
     bne _ac42
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _ac32
@@ -6042,7 +6043,7 @@ _ac32:
 _ac42:
     cmp #$85
     bne _ac6a
-    jsr $b8f3
+    jsr _b8f3
     lda $3421
     cmp #$ff
     beq _ac51
@@ -6078,7 +6079,7 @@ _ac80:
 _ac81:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcc _ac80
     lda $342a
     cmp #$01
@@ -6091,7 +6092,7 @@ _ac98:
     jmp _ad79
 
 _ac9b:
-    jsr $b782
+    jsr _b782
     lda #$a0
     sta $374a
     jmp _a3ea
@@ -6102,11 +6103,11 @@ _ac9b:
     lda $3747
     cmp #$a0
     bne _acef
-    jsr $bdf0
-    jsr $bd3f
+    jsr _bdf0
+    jsr _bd3f
     lda #$00
     sta $3421
-    jsr $b7b4
+    jsr _b7b4
     lda #$01
     sta $3423
     sta $3802
@@ -6161,7 +6162,7 @@ _ad35:
     dec $3748
     lda $37d7
     beq _ad46
-    jsr $bdbb
+    jsr _bdbb
     jmp _ad46
 
 _ad43:
@@ -6174,12 +6175,12 @@ _ad46:
 _ad50:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _ad62
 _ad5a:
     lda #$00
     sta $3421
-    jmp $b7b4
+    jmp _b7b4
 _ad62:
     lda $342a
     cmp #$01
@@ -6200,13 +6201,13 @@ _ad79:
     bne _ad6e
     lda #$a2
     sta $3747
-    jsr $bdc0
+    jsr _bdc0
     rts
 
 _ad8e:
     cmp #$a2
     bne _adad
-    jsr $b9f5
+    jsr _b9f5
     lda $3421
     cmp #$ff
     beq _ad9d
@@ -6229,7 +6230,7 @@ _adad:
 _adbc:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcc _add8
     lda $342a
     cmp #$04
@@ -6271,7 +6272,7 @@ _ae03:
     sta $380d
     lda $3747
     sta $380c
-    jsr $be12
+    jsr _be12
     lda #$05
     sta $3748
     lda #$00
@@ -6281,7 +6282,7 @@ _ae03:
     lda #$b0
     sta $374a
 _ae26:
-    jsr $b8f3
+    jsr _b8f3
     lda $3421
     cmp #$ff
     beq _ae42
@@ -6295,7 +6296,7 @@ _ae31:
     lda #$80
     sta $374a
 _ae42:
-    jsr $b782
+    jsr _b782
     lda $380c
     sta $3747
     lda $380d
@@ -6319,7 +6320,7 @@ _ae66:
     lda $3747
     cmp #$b0
     bne _ae7d
-    jsr $b6cf
+    jsr _b6cf
     lda #$00
     sta $3421
     lda #$0c
@@ -6328,7 +6329,7 @@ _ae66:
 _ae7d:
     cmp #$b1
     bne _ae99
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _ae8c
@@ -6347,10 +6348,10 @@ _aea0:
     lda $3804
     bne _aebe
 _aea5:
-    jsr $be12
+    jsr _be12
     lda #$b1
     sta $3747
-    jsr $b6cf
+    jsr _b6cf
     lda #$00
     sta $3421
     dec $37fb
@@ -6368,7 +6369,7 @@ _aebe:
 _aec9:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _aed4
     rts
 _aed4:
@@ -6419,7 +6420,7 @@ _af1b:
 _af2a:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _af37
     jmp _af54
 _af37:
@@ -6450,14 +6451,14 @@ _af60:
     sta $342f
     cmp #$04
     bne _af6d
-    jsr $b648
+    jsr _b648
 _af6d:
     jmp _ae54
 
 _af70:
     cmp #$b4
     bne _af9d
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _af7f
@@ -6481,7 +6482,7 @@ _af98:
 _af9d:
     cmp #$b6
     bne _afbe
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _afb2
@@ -6504,7 +6505,7 @@ _afbe:
     lda $3747
     cmp #$c0
     bne _afe6
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _afd3
@@ -6513,7 +6514,7 @@ _afd3:
     lda #$0c
     sta $37fb
 _afd8:
-    jsr $b71d
+    jsr _b71d
     lda #$00
     sta $3421
     lda #$c1
@@ -6523,7 +6524,7 @@ _afd8:
 _afe6:
     cmp #$c1
     bne _b002
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _aff5
@@ -6539,7 +6540,7 @@ _b002:
     bne _b04d
     lda $3804
     bne _b016
-    jsr $be12
+    jsr _be12
     dec $37fb
     bne _afd8
     jmp _adf4
@@ -6551,7 +6552,7 @@ _b016:
 _b020:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _b02b
     rts
 
@@ -6585,7 +6586,7 @@ _b04d:
 _b05b:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _b071
 _b065:
     lda $3747
@@ -6610,7 +6611,7 @@ _b071:
 _b08d:
     cmp #$c9
     bne _b09c
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _b09f
@@ -6639,13 +6640,13 @@ _b0bb:
     jmp _a3ef
 
 _b0c0:
-    jsr $b675
+    jsr _b675
     lda #$fe
     jmp _a3ef
     lda $3747
     cmp #$e0
     bne _b0df
-    jsr $b742
+    jsr _b742
     lda #$00
     sta $3421
     lda #$0c
@@ -6655,7 +6656,7 @@ _b0c0:
 _b0df:
     cmp #$e1
     bne _b0fb
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _b0ee
@@ -6675,10 +6676,10 @@ _b102:
     lda $3804
     bne _b120
 _b107:
-    jsr $be12
+    jsr _be12
     lda #$e1
     sta $3747
-    jsr $b742
+    jsr _b742
     lda #$00
     sta $3421
     dec $37fb
@@ -6697,7 +6698,7 @@ _b120:
 _b12b:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _b136
     rts
 
@@ -6752,7 +6753,7 @@ _b17d:
 _b18c:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _b199
     jmp _b171
 _b199:
@@ -6775,13 +6776,13 @@ _b1b6:
     sta $342f
     cmp #$07
     bne _b1c3
-    jsr $b668
+    jsr _b668
 _b1c3:
     jmp _ae54
 _b1c6:
     cmp #$e4
     bne _b1f3
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _b1d5
@@ -6806,7 +6807,7 @@ _b1ee:
 _b1f3:
     cmp #$e9
     bne _b214
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _b208
@@ -6837,7 +6838,7 @@ _b214:
 _b22b:
     cmp #$d1
     bne _b23d
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _b23a
@@ -6849,7 +6850,7 @@ _b23a:
 _b23d:
     cmp #$d2
     bne _b251
-    jsr $b762
+    jsr _b762
 _b244:
     lda #$08
     sta $3804
@@ -6860,7 +6861,7 @@ _b244:
 _b251:
     cmp #$d3
     bne _b260
-    jsr $bbce
+    jsr _bbce
     lda $3421
     cmp #$ff
     beq _b244
@@ -6880,7 +6881,7 @@ _b260:
 _b274:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcc _b28c
     lda $342a
     cmp #$05
@@ -6919,7 +6920,7 @@ _b2b4:
 _b2bf:
     lda #$00
     sta $3421
-    jsr $bdfb
+    jsr _bdfb
     bcs _b2ca
     rts
 
@@ -6955,13 +6956,13 @@ _b300:
     lda #$fc
     jmp _a3ef
 _b305:
-    jsr $b675
+    jsr _b675
     lda #$fe
     jmp _a3ef
 _b30d:
     cmp #$d9
     bne _b328
-    jsr $b7c7
+    jsr _b7c7
     lda $3421
     cmp #$ff
     beq _b31c
@@ -7330,3 +7331,1481 @@ _b58a:
     rts
 
 _b597:
+    cmp #$06
+    bne _b607
+_b59b:
+    lda $341a
+    bne _b5a3
+    jmp _b498
+_b5a3:
+    lda $0b02,y
+    cmp #$2f
+    bne _b5b4
+_b5aa:
+    dec $341a
+    iny
+    dex
+    beq _b5bb
+    jmp _b5c1
+_b5b4:
+    dec $341a
+    iny
+    dex
+    bne _b59b
+_b5bb:
+    rts
+
+_b5bc:
+    pla
+    tax
+    jmp _b5aa
+_b5c1:
+    lda #$00
+    sta $3420
+_b5c6:
+    txa
+    pha
+    ldx $3420
+    cpx #$07
+    bcs _b5fa
+    lda $0b02,y
+    cmp #$2f
+    beq _b5bc
+    and #$0f
+    sta $3800
+    iny
+    dec $341a
+    pla
+    tax
+    dex
+    beq _b5bb
+    txa
+    pha
+    lda $0b02,y
+    cmp #$2f
+    beq _b5bc
+    asl
+    asl
+    asl
+    asl
+    ora $3800
+    ldx $3420
+    sta $3433,x
+_b5fa:
+    pla
+    tax
+    iny
+    dec $341a
+    inc $3420
+    dex
+    bne _b5c6
+    rts
+
+_b607:
+    cmp #$07
+    bne _b619
+    lda $0b02,y
+    sta $342f
+    iny
+    dex
+    bne _b616
+    rts
+
+_b616:
+    jmp _b498
+_b619:
+    lda $341a
+    beq _b626
+    iny
+    dec $341a
+    dex
+    bne _b619
+    rts
+
+_b626:
+    jmp _b498
+_b629:
+    lda #$03
+    sta $0b00
+    lda #$02
+    sta $0b01
+    lda $3809
+    sta $0b02
+    lda $380a
+    sta $0b03
+    lda #$04
+    sta $374c
+    sta $37fc
+    rts
+
+_b648:
+    lda $0b02
+    sta $37a9
+    lda $0b03
+    sta $37aa
+    lda $0b04
+    sta $37ab
+    rts
+    lda $0b02
+    sta $37ac
+    lda $0b03
+    sta $37ad
+    rts
+
+_b668:
+    lda $0b02
+    sta $37ae
+    lda $0b03
+    sta $37af
+    rts
+
+_b675:
+    ldy #$00
+    sty $37b0
+    sty $37b1
+    sty $37b2
+    ldx $0b00
+    dex
+    lda $0b02,y
+    sta $37b0
+    dex
+    iny
+    lda $0b02,y
+    sta $37b1
+    dex
+    iny
+_b694:
+    lda $0b02,y
+    sta $341b
+    iny
+    dex
+    bne _b69f
+    rts
+
+_b69f:
+    lda $0b02,y
+    sta $341a
+    iny
+    dex
+    bne _b6aa
+    rts
+
+_b6aa:
+    lda $341b
+    cmp #$03
+    bne _b6bf
+    lda $0b02,y
+    sta $37b2
+    iny
+    dex
+    bne _b6bc
+    rts
+
+_b6bc:
+    jmp _b694
+
+_b6bf:
+    lda $341a
+    beq _b6cc
+    iny
+    dec $341a
+    dex
+    bne _b6bf
+    rts
+
+_b6cc:
+    jmp _b694
+
+_b6cf:
+    ldx #$01
+    ldy #$00
+_b6d3:
+    lda _b70e,y
+    sta $0b00,x
+    inx
+    iny
+    cpy #$0f
+    bne _b6d3
+    lda $374e
+    clc
+    adc $37bd
+    sta $374e
+    bcc _b6f6
+    clc
+    lda $37bc
+    adc #$01
+    bcc _b6f9
+    brk
+
+_b6f4:
+.byte $c2, $00
+
+_b6f6:
+    lda $37bc
+_b6f9:
+    sta $0b00,x
+    inx
+    lda $374e
+    sta $0b00,x
+    lda #$11
+    tax
+    sta $0b00
+    inx
+    stx $374c
+    rts
+
+_b70e:
+.byte $03,$01,$01,$01,$00,$02,$00,$03,$01,$01,$04,$01,$01,$05,$02
+
+_b71d:
+    ldx #$00
+    lda #$04
+    sta $0b00,x
+    inx
+    sta $0b00,x
+    inx
+    lda $37a2
+    sta $0b00,x
+    inx
+    lda $37a3
+    sta $0b00,x
+    inx
+    lda $37a4
+    sta $0b00,x
+    inx
+    stx $374c
+    rts
+
+_b742:
+    ldx #$00
+    lda #$03
+    sta $0b00,x
+    inx
+    lda #$06
+    sta $0b00,x
+    inx
+    lda $37a5
+    sta $0b00,x
+    inx
+    lda $37a6
+    sta $0b00,x
+    inx
+    stx $374c
+    rts
+
+_b762:
+    ldx #$00
+    lda #$03
+    sta $0b00,x
+    inx
+    lda #$07
+    sta $0b00,x
+    inx
+    lda $37a7
+    sta $0b00,x
+    inx
+    lda $37a8
+    sta $0b00,x
+    inx
+    stx $374c
+    rts
+
+_b782:
+    lda #$1c
+    ldx #$03
+    jsr $3354
+    lda #$2e
+    jsr $3354
+    jsr _bd13
+    jsr _bdc0
+    lda #$14
+    jsr $3354
+    lda #$15
+    jsr $3354
+    lda #$00
+    sta $3747
+    sta $3421
+    sta $3749
+    lda #$01
+    sta $3802
+    sta $3423
+    jmp _bd47
+_b7b4:
+    lda #$01
+    sta $3423
+    sta $3424
+    lda #$01
+    sta $3426
+    lda #$04
+    sta $3425
+    rts
+
+_b7c7:
+    lda $3421
+    cmp #$12
+    bne _b7d1
+    jmp _b8d7
+_b7d1:
+    cmp #$00
+    bne _b7f5
+    jsr _bce0
+    jsr _bd01
+    jsr _bddb
+    bcs _b7e1
+    rts
+
+_b7e1:
+    lda #$01
+    ldx $379e
+    beq _b7ef
+    clc
+    adc #$01
+    adc #$01
+    adc #$01
+_b7ef:
+    sta $3807
+    jmp _b8ec
+_b7f5:
+    cmp #$01
+    bne _b804
+    lda $3807
+    beq _b7ff
+    rts
+
+_b7ff:
+    lda #$16
+    jmp _b8e9
+_b804:
+    jsr _bd69
+    bcs _b80a
+    rts
+
+_b80a:
+    lda $3427
+    cmp #$10
+    bne _b814
+    jmp _bd80
+_b814:
+    lda $3421
+    cmp #$02
+    bne _b823
+    lda #$10
+    jsr _bda8
+    jmp _b8ec
+_b823:
+    cmp #$03
+    bne _b837
+    lda #$02
+    jsr _bd92
+    lda #$00
+    sta $341c
+    sta $341d
+    jmp _b8ec
+_b837:
+    cmp #$04
+    bne _b840
+    lda #$07
+    jmp _b8e9
+_b840:
+    cmp #$05
+    bne _b849
+    lda #$05
+    jmp _b8e9
+_b849:
+    cmp #$06
+    bne _b852
+    lda #$01
+    jmp _b8e9
+_b852:
+    cmp #$07
+    bne _b85b
+    lda #$01
+    jmp _b8e9
+_b85b:
+    cmp #$08
+    bne _b865
+    lda $3808
+    jmp _b8e9
+_b865:
+    cmp #$09
+    bne _b86e
+    lda #$02
+    jmp _b8e9
+_b86e:
+    cmp #$0a
+    bne _b877
+    lda #$01
+    jmp _b8e9
+_b877:
+    cmp #$0b
+    bne _b881
+    lda $3802
+    jmp _b8e9
+_b881:
+    cmp #$0c
+    bne _b88d
+    lda #$10
+    jsr _bda8
+    jmp _b8ec
+_b88d:
+    cmp #$0d
+    bne _b896
+    lda #$03
+    jmp _b8e9
+_b896:
+    cmp #$0e
+    bne _b8a3
+    lda $341d
+    jsr _bda8
+    jmp _b8ec
+_b8a3:
+    cmp #$0f
+    bne _b8b0
+    lda $341c
+    jsr _bda8
+    jmp _b8ec
+_b8b0:
+    cmp #$10
+    bne _b8b9
+    lda #$ff
+    jmp _b8e9
+_b8b9:
+    cmp #$11
+    bne _b8d7
+    lda #$ff
+    jsr _bd92
+    lda $3822
+    bne _b8cf
+    lda #$ff
+    sta $3421
+    jmp _bd13
+_b8cf:
+    lda #$02
+    sta $3807
+    jmp _b8ec
+_b8d7:
+    cmp #$12
+    bne _b8f0
+    lda $3807
+    bne _b8e8
+    lda #$ff
+    sta $3421
+    jsr _bd13
+_b8e8:
+    rts
+
+_b8e9:
+    jsr _bd92
+_b8ec:
+    inc $3421
+    rts
+
+_b8f0:
+    jmp _ae58
+_b8f3:
+    lda $3421
+    bne _b916
+    lda #$01
+    ldx $379e
+    beq _b904
+    clc
+    adc #$01
+    adc #$01
+_b904:
+    sta $3807
+    jsr _bce0
+    jsr _bd01
+    jsr _bddb
+    bcs _b913
+    rts
+
+_b913:
+    jmp _b9ec
+_b916:
+    cmp #$01
+    bne _b925
+    lda $3807
+    beq _b920
+    rts
+
+_b920:
+    lda #$16
+    jmp _b9e9
+_b925:
+    jsr _bd69
+    bcs _b92b
+    rts
+
+_b92b:
+    lda $3427
+    cmp #$10
+    bne _b935
+    jmp _bd80
+
+_b935:
+    lda $3421
+    cmp #$02
+    bne _b944
+    lda #$10
+    jsr _bda8
+    jmp _b9ec
+_b944:
+    cmp #$03
+    bne _b958
+    lda #$02
+    jsr _bd92
+    lda #$00
+    sta $341c
+    sta $341d
+    jmp _b9ec
+
+_b958:
+    cmp #$04
+    bne _b961
+    lda #$07
+    jmp _b9e9
+_b961:
+    cmp #$05
+    bne _b96a
+    lda #$02
+    jmp _b9e9
+_b96a:
+    cmp #$06
+    bne _b973
+    lda #$01
+    jmp _b9e9
+_b973:
+    cmp #$07
+    bne _b97c
+    lda #$01
+    jmp _b9e9
+_b97c:
+    cmp #$08
+    bne _b986
+    lda $3750
+    jmp _b9e9
+_b986:
+    cmp #$09
+    bne _b98f
+    lda #$02
+    jmp _b9e9
+_b98f:
+    cmp #$0a
+    bne _b998
+    lda #$01
+    jmp _b9e9
+_b998:
+    cmp #$0b
+    bne _b9a2
+    lda $374f
+    jmp _b9e9
+_b9a2:
+    cmp #$0c
+    bne _b9ae
+    lda #$10
+    jsr _bda8
+    jmp _b9ec
+_b9ae:
+    cmp #$0d
+    bne _b9b7
+    lda #$03
+    jmp _b9e9
+_b9b7:
+    cmp #$0e
+    bne _b9c4
+    lda $341d
+    jsr _bda8
+    jmp _b9ec
+_b9c4:
+    cmp #$0f
+    bne _b9d1
+    lda $341c
+    jsr _bda8
+    jmp _b9ec
+_b9d1:
+    cmp #$10
+    bne _b9da
+    lda #$ff
+    jmp _b9e9
+_b9da:
+    cmp #$11
+    bne _b9ec
+    lda #$ff
+    sta $3421
+    jsr _bd92
+    jmp _bd13
+_b9e9:
+    jsr _bd92
+_b9ec:
+    inc $3421
+    rts
+
+_b9f0: .byte $01
+_b9f1: .byte $00
+_b9f2: .byte $00
+_b9f3: .byte $00
+_b9f4: .byte $ff
+
+_b9f5:
+    lda $3421
+    cmp #$00
+    bne _ba53
+    jsr _bce0
+    jsr _bd01
+    jsr _bddb
+    bcs _ba08
+    rts
+
+_ba08:
+    lda #$01
+    clc
+    adc #$01
+    adc #$01
+    sta $3807
+    ldx #$00
+    stx $3820
+    lda #$20
+_ba19:
+    sta $37f2,x
+    inx
+    cpx #$04
+    bne _ba19
+    ldx #$00
+_ba23:
+    lda $376a,x
+    cmp #$78
+    beq _ba36
+    cmp #$58
+    beq _ba36
+    inx
+    cpx #$16
+    bne _ba23
+    jmp _bbca
+
+_ba36:
+    inx
+    ldy #$00
+_ba39:
+    lda $376a,x
+    sta $37f2,y
+    inx
+    cpx #$16
+    beq _ba4d
+    cmp #$20
+    beq _ba4d
+    iny
+    cpy #$04
+    bne _ba39
+_ba4d:
+    sty $3820
+    jmp _bbca
+
+_ba53:
+    cmp #$01
+    bne _ba62
+    lda $3807
+    beq _ba5d
+    rts
+
+_ba5d:
+    lda #$16
+    jmp _bbc7
+_ba62:
+    jsr _bd69
+    bcs _ba68
+    rts
+
+_ba68:
+    lda $3427
+    cmp #$10
+    bne _ba72
+    jmp _bd80
+
+_ba72:
+    lda $3421
+    cmp #$02
+    bne _ba81
+    lda #$10
+    jsr _bda8
+    jmp _bbca
+
+_ba81:
+    cmp #$03
+    bne _ba95
+    lda #$02
+    jsr _bd92
+    lda #$00
+    sta $341c
+    sta $341d
+    jmp _bbca
+
+_ba95:
+    cmp #$04
+    bne _baae
+    lda $37f2
+    cmp #$20
+    bne _baa5
+    lda #$0a
+    jmp _bbc7
+
+_baa5:
+    lda #$0c
+    clc
+    adc $3820
+    jmp _bbc7
+
+_baae:
+    cmp #$05
+    bne _bab7
+    lda #$01
+    jmp _bbc7
+
+_bab7:
+    cmp #$06
+    bne _bac0
+    lda #$01
+    jmp _bbc7
+
+_bac0:
+    cmp #$07
+    bne _bac9
+    lda #$01
+    jmp _bbc7
+
+_bac9:
+    cmp #$08
+    bne _bad2
+    lda #$06
+    jmp _bbc7
+
+_bad2:
+    cmp #$09
+    bne _badc
+    lda _b9f0
+    jmp _bbc7
+
+_badc:
+    cmp #$0a
+    bne _bae6
+    lda _b9f1
+    jmp _bbc7
+
+_bae6:
+    cmp #$0b
+    bne _baf0
+    lda _b9f2
+    jmp _bbc7
+
+_baf0:
+    cmp #$0c
+    bne _bb0a
+    clc
+    lda _b9f0
+    adc _b9f1
+    clc
+    adc _b9f2
+    clc
+    adc _b9f3
+    clc
+    adc _b9f4
+    jmp _bbc7
+
+_bb0a:
+    cmp #$0d
+    bne _bb14
+    lda _b9f3
+    jmp _bbc7
+
+_bb14:
+    cmp #$0e
+    bne _bb1e
+    lda _b9f4
+    jmp _bbc7
+
+_bb1e:
+    cmp #$0f
+    bne _bb34
+    lda $37f2
+    cmp #$20
+    bne _bb2f
+_bb29:
+    lda #$15
+    sta $3421
+    rts
+
+_bb2f:
+    lda #$05
+    jmp _bbc7
+
+_bb34:
+    cmp #$10
+    bne _bb3e
+    lda $3820
+    jmp _bbc7
+_bb3e:
+    cmp #$11
+    bne _bb4b
+    dec $3820
+    lda $37f2
+    jmp _bbc7
+
+_bb4b:
+    cmp #$12
+    bne _bb5d
+    lda $3820
+    beq _bb29
+    dec $3820
+    lda $37f3
+    jmp _bbc7
+
+_bb5d:
+    cmp #$13
+    bne _bb6f
+    lda $3820
+    beq _bb29
+    dec $3820
+    lda $37f4
+    jmp _bbc7
+
+_bb6f:
+    cmp #$14
+    bne _bb81
+    lda $3820
+    beq _bb29
+    dec $3820
+    lda $37f5
+    jmp _bbc7
+
+_bb81:
+    cmp #$15
+    bne _bb8d
+    lda #$10
+    jsr _bda8
+    jmp _bbca
+
+_bb8d:
+    cmp #$16
+    bne _bb99
+    lda #$03
+    jsr _bd92
+    jmp _bbca
+
+_bb99:
+    cmp #$17
+    bne _bba6
+    lda $341d
+    jsr _bda8
+    jmp _bbca
+
+_bba6:
+    cmp #$18
+    bne _bbb3
+    lda $341c
+    jsr _bda8
+    jmp _bbca
+
+_bbb3:
+    cmp #$19
+    bne _bbbc
+    lda #$ff
+    jmp _bbc7
+
+_bbbc:
+    lda #$ff
+    sta $3421
+    jsr _bd92
+    jmp _bd13
+_bbc7:
+    jsr _bd92
+_bbca:
+    inc $3421
+    rts
+
+_bbce:
+    lda $3421
+    cmp #$00
+    bne _bbeb
+    jsr _bce0
+    jsr _bd01
+    lda $379e
+    beq _bbe8
+    lda #$01
+    clc
+    adc #$01
+    sta $3807
+_bbe8:
+    jmp _bcd9
+
+_bbeb:
+    cmp #$01
+    bne _bc11
+    ldx $374c
+    stx $37fc
+    lda #$00
+    sta $37fe
+    jsr _bddb
+    bcs _bc00
+    rts
+
+_bc00:
+    lda $3807
+    beq _bc06
+    rts
+
+_bc06:
+    jsr _bd69
+    bcs _bc0c
+    rts
+
+_bc0c:
+    lda #$16
+    jmp _bcd6
+
+_bc11:
+    jsr _bd69
+    bcs _bc17
+    rts
+
+_bc17:
+    lda $3427
+    cmp #$10
+    bne _bc21
+    jmp _bd80
+
+_bc21:
+    lda $3421
+    cmp #$02
+    bne _bc30
+    lda #$10
+    jsr _bda8
+    jmp _bcd9
+_bc30:
+    cmp #$03
+    bne _bc42
+    lda #$02
+    jsr _bcd6
+    lda #$00
+    sta $341c
+    sta $341d
+    rts
+
+_bc42:
+    cmp #$04
+    bne _bc4b
+    lda #$04
+    jmp _bcd6
+
+_bc4b:
+    cmp #$05
+    bne _bc54
+    lda #$04
+    jmp _bcd6
+
+_bc54:
+    cmp #$06
+    bne _bc5d
+    lda #$01
+    jmp _bcd6
+
+_bc5d:
+    cmp #$07
+    bne _bc66
+    lda #$01
+    jmp _bcd6
+
+_bc66:
+    cmp #$08
+    bne _bc70
+    lda $3801
+    jmp _bcd6
+
+_bc70:
+    cmp #$09
+    bne _bc8f
+    lda $37fc
+    bne _bc7f
+    lda #$0e
+    sta $3421
+    rts
+
+_bc7f:
+    ldx $37fe
+    lda $0b00,x
+    jsr _bd92
+    inc $37fe
+    dec $37fc
+    rts
+
+_bc8f:
+    cmp #$0e
+    bne _bc9b
+    lda #$10
+    jsr _bda8
+    jmp _bcd9
+
+_bc9b:
+    cmp #$0f
+    bne _bca4
+    lda #$03
+    jmp _bcd6
+
+_bca4:
+    cmp #$10
+    bne _bcb1
+    lda $341d
+    jsr _bda8
+    jmp _bcd9
+
+_bcb1:
+    cmp #$11
+    bne _bcbe
+    lda $341c
+    jsr _bda8
+    jmp _bcd9
+
+_bcbe:
+    cmp #$12
+    bne _bcc7
+    lda #$ff
+    jmp _bcd6
+
+_bcc7:
+    cmp #$13
+    bne _bcdd
+    lda #$ff
+    sta $3421
+    jsr _bd92
+    jmp _bd13
+
+_bcd6:
+    jsr _bd92
+
+_bcd9:
+    inc $3421
+    rts
+
+_bcdd:
+    jmp _ae58
+
+_bce0:
+    jsr _bd5f
+    lda #$15
+    jsr $3354
+    ldx #$00
+    stx $3421
+    lda #$1f
+    jsr $3354
+    lda #$20
+    ldx #$1c
+    jsr $3354
+    lda #$10
+    jsr $3354
+    jmp _bd55
+
+_bd01:
+    jsr _bd5f
+    lda #$10
+    jsr $3354
+    lda #$17
+    ldx #$02
+    jsr $3354
+    jmp _bd55
+
+_bd13:
+    lda $3822
+    bne _bd24
+    lda #$17
+    ldx #$82
+    jsr $3354
+    lda #$11
+    jmp $3354
+
+_bd24:
+    lda #$00
+    sta $3822
+    rts
+
+_bd2a:
+    jsr _bd5f
+    lda #$40
+    jsr $fff4
+    txa
+    and #$08
+    beq _bd3b
+    sec
+    jmp _bd55
+_bd3b:
+    clc
+    jmp _bd55
+
+_bd3f:
+    jsr _bd5f
+    lda #$27
+    jmp _bd4c
+
+_bd47:
+    jsr _bd5f
+    lda #$28
+_bd4c:
+    sta $380e
+    jsr $3354
+    jmp _bd55
+_bd55:
+    lda $3420
+    ldy $3800
+    ldx $37ff
+    rts
+
+_bd5f:
+    sta $3420
+    stx $37ff
+    sty $3800
+    rts
+
+_bd69:
+    jsr _bd5f
+    lda #$19
+    jsr $3354
+    lda $340e
+    and #$04
+    beq _bd7c
+    sec
+    jmp _bd55
+_bd7c:
+    clc
+    jmp _bd55
+
+_bd80:
+    jsr _bd5f
+    ldx #$10
+    lda #$1a
+    jsr $3354
+    lda #$00
+    sta $3427
+    jmp _bd55
+
+_bd92:
+    jsr _bd5f
+    sta $3427
+    ldx #$2d
+    jsr $3300
+    ldx $3427
+    lda #$1a
+    jsr $3354
+    jmp _bd55
+_bda8:
+    pha
+    tax
+    lda #$1a
+    jsr $3354
+    lda #$00
+    sta $3427
+    lda #$3b
+    sta $3748
+    pla
+    rts
+
+_bdbb:
+    ldx #$ff
+    jmp _bdc2
+
+_bdc0:
+    ldx #$00
+_bdc2:
+    lda #$2a
+    jmp $3354
+    jsr _bd5f
+    lda #$2d
+    jsr $3354
+    lda $340e
+    clc
+    and #$02
+    beq _bdd8
+    sec
+_bdd8:
+    jmp _bd55
+
+_bddb:
+    jsr _bd5f
+    lda #$40
+    jsr $fff4
+    txa
+    and #$02
+    beq _bdec
+    clc
+    jmp _bd55
+_bdec:
+    sec
+    jmp _bd55
+
+_bdf0:
+    jsr _bd5f
+    lda #$30
+    jsr $3354
+    jmp _bd55
+
+_bdfb:
+    lda $341f
+    cmp $341d
+    bne _be0d
+    lda $341e
+    cmp $341c
+    bne _be0d
+    sec
+    rts
+
+_be0d:
+    inc $3821
+    clc
+    rts
+
+_be12:
+    lda #$1c
+    ldx #$03
+    jmp $3354
+_be19:
+    lda #$01
+    ldx #$f6
+    ldy #$37
+    jsr $fff1
+    lda $37f6
+    cmp $3806
+    bne _be2b
+    rts
+
+_be2b:
+    ldx $3806
+_be2e:
+    lda $3807
+    beq _be36
+    dec $3807
+_be36:
+    lda $3819
+    beq _be3e
+    dec $3819
+_be3e:
+    dec $3803
+    lda $3803
+    bne _be63
+    lda #$64
+    sta $3803
+    lda $3804
+    beq _be53
+    dec $3804
+_be53:
+    lda $3748
+    beq _be5b
+    dec $3748
+_be5b:
+    lda $3805
+    beq _be63
+    dec $3805
+_be63:
+    inx
+    cpx $37f6
+    bne _be2e
+    stx $3806
+    rts
+
+_be6d: .byte $dd,$ff
+_be6f:
+    lda $18
+    sta $13
+    ldy #$00
+    sty $12
+    iny
+_be78:
+    dey
+    lda ($12),y
+    cmp #$0d
+    bne _be9e
+    iny
+    lda ($12),y
+    bmi _be90
+    ldy #$03
+    lda ($12),y
+    beq _be9e
+    clc
+    jsr _be93
+    bne _be78
+_be90:
+    iny
+    clc
+    tya
+_be93:
+    adc $12
+    sta $12
+    bcc _be9b
+    inc $13
+_be9b:
+    ldy #$01
+    rts
+
+_be9e:
+    jsr _bfcf   ; The routine called pops a value off the stack and returns.
+
+_bea1:
+.byte $0d,"Bad program",$0d
+
+_beae:
+    nop
+    jmp $8af6
+
+_beb2:
+    lda #$00
+    sta $37
+    lda #$06
+    sta $38
+    ldy $36
+    lda #$0d
+    sta $0600,y
+    rts
+
+_bec2:
+    jsr _bed2
+    ldx #$00
+    ldy #$06
+    jsr OSCLI
+    jmp $8b9b
+
+_becf:
+    jmp $8c0e
+
+_bed2:
+    jsr $9b1d
+    bne _becf
+    jsr _beb2
+    jmp $984c
+    jsr _bed2
+    dey
+    sty $39
+    lda $18
+    sta $3a
+    lda #$82       ; OSBYTE &82 (Read machine high order address)
+    jsr OSBYTE
+    stx $3b        ; low (the EAUG assigns these incorrectly)
+    sty $3c        ; high
+    lda #$00
+    rts
+
+_bef3:
+    jsr _be6f
+    lda $12
+    sta $45
+    lda $13
+    sta $46
+    lda #$23
+
+_bf00:
+.byte $04,$8d,$a0,$9c,$9b,$9d,$9d,$9c,$94,$97,$8e,$90,$91,$91,$91,$91
+.byte $94,$95,$96,$9a,$98,$92,$a2,$a3,$a3,$03
+
+_bf1a:
+    dec $3807
+    lda $3819
+    beq _bf25
+    dec $3819
+_bf25:
+    dec $3803
+    lda $3803
+    bne _bf4a
+    lda #$64
+    sta $3803
+    lda $3804
+    beq _bf3a
+    dec $3804
+_bf3a:
+    lda $3748
+    beq _bf42
+    dec $3748
+_bf42:
+    lda $3805
+    beq _bf4a
+    dec $3805
+_bf4a:
+    inx
+    cpx $37f6
+    bne $bf15   ; ?
+    stx $3806
+    rts
+
+_bf54:
+    php
+    beq _bf5b
+    sec
+    jmp _bd55
+_bf5b:
+    clc
+    jmp _bd55
+    jsr _bd5f
+    lda #$27
+    jmp _bd4c
+    jsr _bd5f
+    lda #$28
+    sta $380e
+    jsr $3354
+    jmp _bd55
+    lda $3420
+    ldy $3800
+    ldx $37ff
+    rts
+
+_bf7f:
+.byte $8d
+.byte $ff,$d7,$bb,$4d,$8a,$95,$7d,$47,$d8,$00,$d6,$53,$bb,$6a,$9d,$ba
+.byte $c0,$19,$5c,$93,$a7,$60
+
+_bf96:
+    sei
+    dex
+    sec
+    jmp _bd55
+    clc
+    jmp _bd55
+    jsr _bd5f
+    ldx #$10
+    lda #$1a
+    jsr $3354
+    lda #$00
+    sta $3427
+    jmp _bd55
+    jsr _bd5f
+    sta $3427
+    ldx #$2d
+    jsr $3300
+    ldx $3427
+    lda #$1a
+    jsr $3354
+    jmp _bd55
+    pha
+    tax
+    lda #$1a
+    jsr $3354
+
+_bfcf:
+    lda #$00
+    sta $3427
+    lda #$3b
+    sta $3748
+    pla
+    rts
+
+_bfdb:
+    ldx #$ff
+    jmp _bdc2
+    ldx #$00
+    lda #$2a
+    jmp $3354
+    jsr _bd5f
+    lda #$2d
+    jsr $3354
+    lda $340e
+    clc
+    and #$02
+    beq _bff8
+    sec
+_bff8:
+    jmp _bd55
+_bffb:
+    jsr _bd5f
+    lda #$0e
