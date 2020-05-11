@@ -5,6 +5,10 @@
 .alias OSASCI $ffe3
 .alias OSNEWL $ffe7
 
+.alias EVNTV $0220
+.alias INSV  $022a
+.alias REMV  $022c
+
 ; Note: Uses these addresses in pages &FC and &FD:
 ;
 ; $fc50: 50 51 52 53 54 55 56 57 58 59 5a 5b    5d 5e 5f
@@ -15,6 +19,15 @@
 ; $fd10:                   16 17 18 19
 ; $fde0:                            e9 ea eb ec ed    ef
 ; $fdf0: f0 f1
+
+; According to https://stardot.org.uk/forums/viewtopic.php?f=3&t=6184&sid=b09d047808f3c7987d1722f48b712c4d#p268262
+;
+;   The memory mapped devices are:
+;   FC50 SCN2681
+;   FC60 6522
+;   FC70 6522
+;
+;   There's also 32K RAM in JIM, paged at FCFF.
 
 .org $8000
 
@@ -125,27 +138,27 @@ _80a2:
     lda $fc70
     ora #$02
     sta $fc70
-    jmp _8113
+    jmp claim_service_call
 
 _80be:
     dec $3f0b
-        bne _8113
+        bne claim_service_call
 
     lda #$80
     sta $fc57
     lda #$0d
     sta $fc56
     lda $fc5e
-    jmp _8113
+    jmp claim_service_call
 
 _80d3:
     dec $3f0b
-        bne _8113
+        bne claim_service_call
     inc $3f0e
     dec $3f0f
         beq _80e6
     jsr _88d0
-    jmp _8113
+    jmp claim_service_call
 
 _80e6:
     lda #$08
@@ -156,7 +169,7 @@ _80e6:
     sta $3f02
     lda #$00
     sta $3f10
-    jmp _8113
+    jmp claim_service_call
 
 _80fe:
     bit $fc5f
@@ -168,6 +181,7 @@ _80fe:
     lda #$09
     sta $3f0b
 
+claim_service_call:
 _8113:
     pla
     lda #$00
@@ -503,7 +517,7 @@ _826d:
 
 ; OSBYTE routines
 
-; OSBYTE 7
+; OSBYTE 7 (Set RS423 baud rate for receiving data, EAUG, p28)
 set_recv_baud_rate:
 _826e:
     ldx $3f07
@@ -522,12 +536,12 @@ _827b:
     lda $3f04
     and #$0f
     ora $80
-    sta $fc51
+    sta $fc51   ; modem?
     sta $3f04
     clc
     rts
 
-; OSBYTE 8
+; OSBYTE 8 (Set RS423 baud rate for data transmission, EAUG, p28)
 set_send_baud_rate:
 _8298:
     ldx $3f08
@@ -542,7 +556,7 @@ _82a5:
     lda $3f04
     and #$f0
     ora $80
-    sta $fc51
+    sta $fc51   ; modem?
     sta $3f04
     clc
     rts
@@ -748,18 +762,18 @@ _8393:
     sta $3f17
     jmp _83e6
 _83a9:
-    lda $fc53
+    lda $fc53               ; modem?
     sta $3f17
     lda #$f0
     bit $3f16
     beq _83e6
-    lda #$0d
-    ldx #$07
+    lda #$0d                ; Disable events (EAUG, p30)
+    ldx #$07                ; RS423 RX error event
     jsr OSBYTE
     txa
     beq _83e6
-    lda #$0e
-    ldx #$07
+    lda #$0e                ; Enable events (EAUG, p31)
+    ldx #$07                ; RS423 RX error event
     jsr OSBYTE
     lda $3f15
     pha
@@ -785,7 +799,7 @@ _83e6:
     sta $f0
     rts
 _83f0:
-    jmp ($0220)
+    jmp (EVNTV)
 
 osword_81_0a:
 _83f3:
@@ -851,7 +865,7 @@ _8452:
     sta $3f02
     rts
 
-osword_81_0e:
+osword_81_0e:   ; This is similar to osword_81_20
 _8463:
     jsr _8a3b
     jsr _8cea
@@ -1158,7 +1172,7 @@ _8675:
 _8676:
 .byte $18,$66,$50,$06,$30,$60,$18,$66,$00,$44,$08,$44
 
-osword_81_20:
+osword_81_20:   ; This is similar to osword_81_0e
 _8682:
     jsr _8a4f
     jsr _8cf2
@@ -1325,12 +1339,12 @@ _8768:
     sta $fc50
     lda #$00
     sta $f0
-    jsr set_recv_baud_rate ; _826e
+    jsr set_recv_baud_rate  ; _826e
     lda #$00
     sta $f0
-    jsr _8298
-    lda #$0d
-    ldx #$07
+    jsr set_send_baud_rate  ; _8298
+    lda #$0d                ; Disable events (EAUG, p30)
+    ldx #$07                ; RS423 RX error event
     jsr OSBYTE
     lda #$85
     sta $3f13
@@ -1552,7 +1566,7 @@ _8976:
 _897e:
     tya
     pha
-    jsr _8cc1
+    jsr get_speech_buffer_status
     cpy #$00
     bne _898b
     cpx #$00
@@ -1643,9 +1657,9 @@ _8a07:
     rts
 
 osword_81_2f:
-    jsr _8cc1
-    stx $3f16
-    sty $3f17
+    jsr get_speech_buffer_status
+    stx $3f16                       ; Number of spaces remaining
+    sty $3f17                       ; ?
     lda #$02
     sta $3f15
     rts
@@ -1849,7 +1863,7 @@ _8b8c:
     lda #$01
     sta $fc6d
     jsr _8b97
-    jmp _8113
+    jmp claim_service_call
 _8b97:
     ldx #$08
     stx $3f29
@@ -1874,15 +1888,16 @@ _8bab:
     bit $3f2a
     bvs _8bcf
     jsr _8c82
-    jmp _8bd8
+    jmp enable_speech
 _8bcf:
     asl $3f2b
     rol $3f2c
     jsr _8ca8
+enable_speech:
 _8bd8:
-    lda #$d1
-    ldx #$00
-    ldy #$ff
+    lda #$d1    ; Read/write speech suppression status (EAUG, p72)
+    ldx #$00    ; new = (old AND Y) EOR X
+    ldy #$ff    ; So, this clears the status, enabling speech.
     jsr OSBYTE
     txa
     jmp _8bfa
@@ -2024,13 +2039,15 @@ _8cb2:
     cpx #$02
     bcc _8cad
     jmp _8c82
+
+get_speech_buffer_status:
 _8cc1:
     lda $f0
     pha
     lda $f1
     pha
-    lda #$80
-    ldx #$f7
+    lda #$80        ; Get buffer status (EAUG, p46)
+    ldx #$f7        ; Speech buffer
     ldy #$ff
     jsr OSBYTE
     pla
@@ -2041,14 +2058,14 @@ _8cc1:
 _8cd7:
     ldx #$08
     clv
-    jmp ($022c)
+    jmp (REMV)
 _8cdd:
     ldx #$08
     bit _8a74
-    jmp ($022c)
+    jmp (REMV)
 _8ce5:
     ldx #$08
-    jmp ($022a)
+    jmp (INSV)
 _8cea:
     pha
     lda #$10
@@ -2121,7 +2138,19 @@ _8d42:
     jmp ($0082)
 
 _8d47:
-.byte $5f,$70,$74,$72,$00,$86,$08,$00,$00,$00,$64,$2d,$73,$5f,$64,$5f,$70,$61,$67,$65,$5f,$6e,$6f,$00,$86,$10,$00,$00,$00,$b0,$2d,$73,$64,$5f,$70,$31,$6c,$31,$5f,$70,$74,$72,$00,$86,$10,$00,$00,$00,$90,$2d,$6d,$5f,$64,$5f,$74,$61,$62,$6c,$65,$5f,$70,$6f,$69,$6e,$74,$65,$72,$00,$86,$18,$00,$00,$00,$9c,$2d,$6d,$5f,$7a,$70,$00,$86,$18,$00,$00,$00,$1d,$34,$6d,$5f,$64,$5f,$62,$75,$66,$66,$5f,$70,$74,$72,$00,$86,$20,$00,$00,$00,$bf,$2d,$64,$5f,$6c,$62,$5f,$61,$64,$00,$86,$28,$00,$00,$00,$4b,$2e,$64,$5f,$64,$5f,$62,$75,$66,$66,$5f,$70,$74,$72,$00,$86,$28,$00,$00,$00,$e2,$2d,$65,$67,$41,$63,$6f,$70,$79,$00,$86,$30,$00,$00,$00,$f1,$2d,$65,$67,$58,$63,$6f,$70,$79,$00,$86,$34,$00,$00,$00,$d3,$2e,$65,$67,$59,$63,$6f,$70,$79,$00,$86,$38,$00,$00,$00,$60
+.byte $5f,$70,$74,$72,$00,$86,$08,$00,$00
+.byte $00,$64,$2d,$73,$5f,$64,$5f,$70,$61,$67,$65,$5f,$6e,$6f,$00,$86
+.byte $10,$00,$00,$00,$b0,$2d,$73,$64,$5f,$70,$31,$6c,$31,$5f,$70,$74
+.byte $72,$00,$86,$10,$00,$00,$00,$90,$2d,$6d,$5f,$64,$5f,$74,$61,$62
+.byte $6c,$65,$5f,$70,$6f,$69,$6e,$74,$65,$72,$00,$86,$18,$00,$00,$00
+.byte $9c,$2d,$6d,$5f,$7a,$70,$00,$86,$18,$00,$00,$00,$1d,$34,$6d,$5f
+.byte $64,$5f,$62,$75,$66,$66,$5f,$70,$74,$72,$00,$86,$20,$00,$00,$00
+.byte $bf,$2d,$64,$5f,$6c,$62,$5f,$61,$64,$00,$86,$28,$00,$00,$00,$4b
+.byte $2e,$64,$5f,$64,$5f,$62,$75,$66,$66,$5f,$70,$74,$72,$00,$86,$28
+.byte $00,$00,$00,$e2,$2d,$65,$67,$41,$63,$6f,$70,$79,$00,$86,$30,$00
+.byte $00,$00,$f1,$2d,$65,$67,$58,$63,$6f,$70,$79,$00,$86,$34,$00,$00
+.byte $00,$d3,$2e,$65,$67,$59,$63,$6f,$70,$79,$00,$86,$38,$00,$00,$00
+.byte $60
 
 _8e01:
     lda $3571
@@ -2181,7 +2210,7 @@ _8e76:
     rts
 
 _8e77:
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     lda $04d9
     sta $3571
     lda $0407
@@ -2225,11 +2254,11 @@ _8ec3:
     jsr $3300
     jsr _8eb1
 _8ed2:
-    jmp _93bc
+    jmp transfer_between_3570_and_0400
 _8ed5:
     lda #$1b
     sta $35ec
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     ldx #$88
     jmp _90c0
 
@@ -2243,15 +2272,15 @@ _8ee2:
 _8ef0:
     jsr _928a
     jsr _8eb1
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     jsr _9297
     jmp _8f18
 _8eff:
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     lda $3571
     cmp #$01
     bne _8f0c
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
 _8f0c:
     jsr _8ec3
     jsr _928a
@@ -2527,21 +2556,21 @@ _90ed:
 _90f0:
     jmp _923a
 _90f3:
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
     ldx #$80
     jmp $3300
 _90fb:
     lda $35e5
     cmp $35ed
     bne _9118
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
     ldx #$82
     jsr $3300
     ldx #$4b
     jsr _93d1
     lda #$00
     sta $3571
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
 _9118:
     lda $35ed
     sta $0401
@@ -2554,7 +2583,7 @@ _9118:
     lda $3571
     cmp #$01
     bne _9137
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
 _9137:
     lda $3571
     cmp #$00
@@ -2564,7 +2593,7 @@ _9137:
     ldx #$4b
     jsr _93d1
 _9148:
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     jsr _92ca
     ldx #$81
     jsr $3300
@@ -2576,7 +2605,7 @@ _9154:
     jsr _915d
     jmp _923a
 _915d:
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
     ldx #$51
     jsr _93d1
     ldx $0400
@@ -2739,7 +2768,7 @@ _92a8:
     sta $3577
     ldx #$47
     jsr _93d1
-    jsr _9448
+    jsr copy_data_at_9455_to_350b
     jsr _92dd
     lda #$01
     sta $3366
@@ -2791,12 +2820,12 @@ _9321:
     lda $35ed
     cmp #$01
     bne _9338
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
     ldx #$82
     jsr $3300
     ldx #$4c
     jsr _93d1
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
 _9338:
     rts
 
@@ -2804,7 +2833,7 @@ _9339:
     lda $35ed
     cmp #$01
     bne _9391
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
     lda #$01
     sta $3571
     lda #$22
@@ -2836,7 +2865,7 @@ _936d:
     and $3419
     sta $3419
 _938e:
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
 _9391:
     rts
 
@@ -2853,33 +2882,37 @@ _93a1:
 _93a6:
     rts
 
+transfer_between_3508_and_357c:
 _93a7:
     lda #$08
-    sta $35
+    sta $35         ; Low address byte
     lda #$35
-    sta $36
+    sta $36         ; High address byte
     lda #$7c
-    sta $37
+    sta $37         ; Low address byte
     lda #$35
-    sta $38
-    ldy #$6f
-    jmp _943a
+    sta $38         ; High address byte
+    ldy #$6f        ; Number of bytes to copy
+    jmp swap_data   ; _943a
 
+transfer_between_3570_and_0400:
 _93bc:
     lda #$70
-    sta $35
+    sta $35         ; Low address byte
     lda #$35
-    sta $36
+    sta $36         ; High address byte
     lda #$00
-    sta $37
+    sta $37         ; Low address byte
     lda #$04
-    sta $38
-    ldy #$07
-    jmp _943a
+    sta $38         ; High address byte
+    ldy #$07        ; Number of bytes to copy
+    jmp swap_data   ; _943a
+
 _93d1:
     lda #$71
     ldy #$35
     jmp $3300
+
 _93d8:
     lda #$01
     ldy #$04
@@ -2891,12 +2924,12 @@ _93d8:
     beq _93ed
     jmp _93fd
 _93ed:
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
     ldx #$82
     jsr $3300
     lda #$00
     sta $3571
-    jsr _93a7
+    jsr transfer_between_3508_and_357c
 _93fd:
     lda $3571
     cmp #$06
@@ -2930,24 +2963,26 @@ _942b:
 _9436:
     lda _9421,y
     rts
+swap_data:
 _943a:
-    lda ($35),y
+    lda ($35),y     ; Uses X to copy data between addresses at ($35) and ($37).
     tax
     lda ($37),y
     sta ($35),y
     txa
     sta ($37),y
     dey
-    bne _943a
+    bne swap_data
     rts
 
+copy_data_at_9455_to_350b:
 _9448:
-    ldx _9455
+    ldx _9455       ; This is #$66 from the table below.
 _944b:
-    lda _9454,x
+    lda _9454,x     ; Offset is from 1 byte before the data.
     sta $350a,x
     dex
-    bne _944b
+    bne _944b       ; Copy data down to 1, stop at zero.
 _9454:
     rts
 
@@ -3400,21 +3435,23 @@ _985a:
 
 _985b:
 .byte $00,$28,$29,$20,$2d
-.byte $78,$58,$3b,$7d,$00,$80,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39
+.byte $78,$58,$3b,$7d,$00,$80,$30,$31,$32,$33,$34
+.byte $35,$36,$37,$38,$39
 _9870:
-.byte $00,$10,$10,$10,$10,$20,$20,$40,$c0,$c0,$c0,$0f,$0e,$0d,$0c,$0b
+.byte $00,$10,$10,$10,$10
+.byte $20,$20,$40,$c0,$c0,$c0,$0f,$0e,$0d,$0c,$0b
 .byte $0a,$09,$08,$07,$06
 
 _9885:
     txa
-    ldy #$14
+    ldy #$14        ; Starting at this offset,
 _9888:
-    cmp _985b,y
-    beq _9890
+    cmp _985b,y     ; compare against values in the above table
+    beq _9890       ; until equal...
     dey
     bne _9888
 _9890:
-    lda _9870,y
+    lda _9870,y     ; ...load the corresponding entry in the table after.
     rts
 
 _9894:
@@ -3900,7 +3937,7 @@ _9c4a:
     jmp _9f5e
 _9c50:
     jsr _9ca2
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     lda $3509
     pha
     lda $350a
@@ -3917,7 +3954,7 @@ _9c65:
     sta $350a
     pla
     sta $3509
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     ldx #$55
     jmp _93d1
 _9c7e:
@@ -3932,7 +3969,7 @@ _9c7e:
     jsr _93d8
     lda $040c
     sta $0402
-    jsr _93bc
+    jsr transfer_between_3570_and_0400
     jsr _92ca
     rts
 
@@ -4112,6 +4149,7 @@ _9ddf:
     sta $36
     jsr _9f15
     jmp _9e04
+_9df3:
     jsr _9f03
     lda #$66
     clc
@@ -4124,6 +4162,7 @@ _9e04:
     lda _a33b,x
     sta $04bf
     jmp _984e
+_9e0d:
     jsr _9f03
     lda _a33b,x
     and #$0f
@@ -4159,6 +4198,7 @@ _9e34:
     pla
     ldx #$38
     jmp $3300
+_9e4d:
     jsr _9f15
     lda _a33b,x
     and #$0f
@@ -4223,6 +4263,7 @@ _9eb4:
     ora $36
     sta ($37),y
     rts
+_9ec3:
     jsr _9f03
     jsr _9f27
     ldy #$01
@@ -4246,6 +4287,7 @@ _9ee8:
     ldx $04cb
     sta $3366,x
     rts
+_9eef:
     rts
 
 _9ef0:
@@ -4303,9 +4345,11 @@ _9f27:
     rts
 
 _9f4a:
-.byte $de,$f2,$4c,$0c,$85,$c2,$ee,$ef
+.byte <[_9ddf - 1],<[_9df3 - 1],<[_9e4d - 1],<[_9e0d - 1]
+.byte <[_9e86 - 1],<[_9ec3 - 1],<[_9eef - 1],<[_9ef0 - 1]
 _9f52:
-.byte $9d,$9d,$9e,$9e,$9e,$9e,$9e,$9e
+.byte >[_9ddf - 1],>[_9df3 - 1],>[_9e4d - 1],>[_9e0d - 1]
+.byte >[_9e86 - 1],>[_9ec3 - 1],>[_9eef - 1],>[_9ef0 - 1]
 _9f5a:
 .byte $01,$03,$07,$0f
 
@@ -4343,8 +4387,8 @@ _9f8b:
     pha             ; These refer to addresses just before routines in the.
     lda _a026,x     ; following section of code.
     pha
-_9f96:              ; In look-up tables at _a021 and _a026.
     rts
+_9f97:              ; In look-up tables at _a021 and _a026.
     ldx #$00
 _9f99:
     lda _a030,x
@@ -4364,22 +4408,21 @@ _9fa6:
     lda #$f1
     sta ($37),y
     iny
-_9fb8:              ; In look-up tables at _a021 and _a026.
     rts
+_9fb9:              ; In look-up tables at _a021 and _a026.
     lda #$83
     sta ($37),y
     iny
-_9fbe:              ; In look-up tables at _a021 and _a026.
     rts
 
-_9fbf:
+_9fbf:              ; In look-up tables at _a021 and _a026.
     ldx #$00
 _9fc1:
     lda $fd27,x
     jsr _9fed
     bne _9fc1
-_9fc9:              ; In look-up tables at _a021 and _a026.
     rts
+_9fca:              ; In look-up tables at _a021 and _a026.
     lda #$82
     sta ($37),y
     iny
@@ -4393,10 +4436,9 @@ _9fd9:
     inx
     cpx #$08
     bne _9fd1
-_9fde:              ; In look-up tables at _a021 and _a026.
     rts
 
-_9fdf:
+_9fdf:              ; In look-up tables at _a021 and _a026.
     ldx #$00
 _9fe1:
     lda _a03c,x
@@ -4441,9 +4483,9 @@ _a01d:
 
 
 _a021:
-.byte $9f,$9f,$9f,$9f,$9f
+.byte >[_9f97 - 1],>[_9fb9 - 1],>[_9fbf - 1],>[_9fca - 1],>[_9fdf - 1]
 _a026:
-.byte $96,$b8,$be,$c9,$de
+.byte <[_9f97 - 1],<[_9fb9 - 1],<[_9fbf - 1],<[_9fca - 1],<[_9fdf - 1]
 _a02b:
 .byte $00,$13,$1b,$15,$1d
 _a030:
@@ -4567,20 +4609,20 @@ _a13b:
     bcs _a14f
     lda #$ff
     sta $0961
-    lda _a150,x
+    lda _a150,x     ; Load high address byte.
     pha
-    lda _a155,x
+    lda _a155,x     ; Load low address byte.
     pha
 _a14f:
     rts
 
 _a150:
-.byte $a1,$a1,$a1,$a1,$a1
+.byte >[_a15a - 1],>[_a18b - 1],>[_a19e - 1],>[_a14f - 1],>[_a14f - 1]
 _a155:
-.byte $59,$8a,$9d,$4e,$4e
+.byte <[_a15a - 1],<[_a18b - 1],<[_a19e - 1],<[_a14f - 1],<[_a14f - 1]
 
 _a15a:
-    lda #$83
+    lda #$83        ; Return current OSHWM in X,Y (EAUG, p48)
     jsr OSBYTE
     cpx #$00
     beq _a164
@@ -5142,7 +5184,7 @@ _a5ed:
 _a609:
     dec $37fb
     beq _a621
-    jsr $b32b
+    jsr _b32b
     lda #$00
     sta $3421
     lda #$08
@@ -5229,7 +5271,7 @@ _a6a4:
     lda $0b01
     cmp #$01
     bne _a6c9
-    jsr $b491
+    jsr _b491
     jmp _ae54
 
 _a6b5:
@@ -5299,7 +5341,7 @@ _a729:
     lda #$00
 _a72b:
     sta $3421
-    jsr $b32b
+    jsr _b32b
     lda #$31
     sta $3747
     rts
@@ -5408,6 +5450,7 @@ _a7ef:
     lda $0b01
     cmp #$03
     bne _a819
+_a7fb:
     jsr $b675
     lda #$fe
     jmp _a3ef
@@ -5662,10 +5705,10 @@ _a9c5:
     beq _a9fd
     cmp #$05
     beq _a9f3
-    jmp $aa02
+    jmp _aa02
 
 _a9e3:
-    jmp $a7fb
+    jmp _a7fb
 
 _a9e6:
     lda $0b01
@@ -5687,7 +5730,7 @@ _aa02:
     jmp _a3ef
     lda $3747
     cmp #$60
-    bne $aa26
+    bne _aa26
     jsr $b8f3
     lda $3421
     cmp #$ff
@@ -5700,6 +5743,7 @@ _aa19:
     lda #$c8
     sta $3807
     jmp _ae54
+_aa26:
     cmp #$61
     bne _aa30
     lda $3807
@@ -6116,12 +6160,12 @@ _acf6:
 _ad35:
     dec $3748
     lda $37d7
-    beq $ad46
+    beq _ad46
     jsr $bdbb
     jmp _ad46
 
 _ad43:
-    jsr $a42a
+    jsr _a42a
 _ad46:
     lda $3421
     cmp #$ff
@@ -6205,13 +6249,13 @@ _add9:
     rts
 
 _ade2:
-    jsr $b491
+    jsr _b491
     jmp _ae54
 _ade8:
     cmp #$a4
     bne _adf1
     lda #$50
-    jmp $a3ef
+    jmp _a3ef
 _adf1:
     jmp _ae26
 _adf4:
@@ -6313,7 +6357,7 @@ _aea5:
     beq _aebb
     rts
 _aebb:
-    jmp $adf4
+    jmp _adf4
 
 _aebe:
     jsr _ae5b
@@ -6425,7 +6469,7 @@ _af7f:
     cmp #$04
     bne _af90
     lda #$20
-    jmp $a3ef
+    jmp _a3ef
 _af90:
     cmp #$ff
     beq _af98
@@ -6433,7 +6477,7 @@ _af90:
     bcs _afac
 _af98:
     lda #$fa
-    jmp $a3ef
+    jmp _a3ef
 _af9d:
     cmp #$b6
     bne _afbe
@@ -6478,7 +6522,7 @@ _afd8:
 
 _afe6:
     cmp #$c1
-    bne $b002
+    bne _b002
     jsr $bbce
     lda $3421
     cmp #$ff
@@ -6490,20 +6534,799 @@ _aff5:
     lda #$00
     sta $3421
     jmp _ae54
+_b002:
     cmp #$c2
-    bne $b04d
+    bne _b04d
     lda $3804
-    bne $b016
+    bne _b016
     jsr $be12
     dec $37fb
     bne _afd8
     jmp _adf4
+_b016:
     lda $3421
     cmp #$ff
-    beq $b020
+    beq _b020
     jmp _ae5b
+_b020:
     lda #$00
     sta $3421
     jsr $bdfb
-    bcs $b02b
+    bcs _b02b
     rts
+
+_b02b:
+    lda $342a
+    cmp #$02
+    bne _b035
+_b032:
+    jmp _ae31
+_b035:
+    cmp #$05
+    beq _b03f
+    lda #$c0
+    sta $3747
+    rts
+
+_b03f:
+    lda $3422
+    cmp $3801
+    bne _afd8
+    inc $3801
+    jmp _ae54
+
+_b04d:
+    cmp #$c3
+    bne _b08d
+    lda $3421
+    cmp #$ff
+    beq _b05b
+    jmp _ae5b
+_b05b:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _b071
+_b065:
+    lda $3747
+    sta $3823
+    lda #$c9
+    sta $3747
+_b070:
+    rts
+
+_b071:
+    lda $342a
+    cmp #$02
+    beq _b032
+    cmp #$04
+    bne _b070
+    lda $3422
+    inc $3808
+    cmp $3808
+    beq _b0ab
+    dec $3808
+    jmp _b065
+_b08d:
+    cmp #$c9
+    bne _b09c
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _b09f
+    rts
+
+_b09c:
+    jmp _ae58
+_b09f:
+    lda #$00
+    sta $3421
+    lda $3823
+    sta $3747
+    rts
+
+_b0ab:
+    lda $0b01
+    cmp #$03
+    beq _b0c0
+    cmp #$05
+    bne _b0bb
+    lda #$fa
+    jmp _a3ef
+
+_b0bb:
+    lda #$fb
+    jmp _a3ef
+
+_b0c0:
+    jsr $b675
+    lda #$fe
+    jmp _a3ef
+    lda $3747
+    cmp #$e0
+    bne _b0df
+    jsr $b742
+    lda #$00
+    sta $3421
+    lda #$0c
+    sta $37fb
+    jmp _ae54
+
+_b0df:
+    cmp #$e1
+    bne _b0fb
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _b0ee
+    rts
+
+_b0ee:
+    lda #$00
+    sta $3421
+    lda #$08
+    sta $3804
+    jmp _ae54
+_b0fb:
+    cmp #$e2
+    beq _b102
+    jmp _b17d
+_b102:
+    lda $3804
+    bne _b120
+_b107:
+    jsr $be12
+    lda #$e1
+    sta $3747
+    jsr $b742
+    lda #$00
+    sta $3421
+    dec $37fb
+    beq _b11d
+    rts
+
+_b11d:
+    jmp _adf4
+_b120:
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _b12b
+    rts
+
+_b12b:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _b136
+    rts
+
+_b136:
+    lda $342a
+    cmp #$04
+    beq _b15f
+    cmp #$05
+    beq _b146
+    cmp #$02
+    beq _b159
+    rts
+
+_b146:
+    lda $3422
+    cmp $3801
+    bne _b15c
+    inc $3801
+    lda #$e3
+    sta $3747
+    jmp _b17d
+_b159:
+    jmp _ae31
+_b15c:
+    jmp _b107
+_b15f:
+    lda $3422
+    inc $3808
+    cmp $3808
+    bne _b16e
+    dec $3808
+    rts
+
+_b16e:
+    dec $3808
+_b171:
+    lda $3747
+    sta $3823
+    lda #$e9
+    sta $3747
+    rts
+
+_b17d:
+    cmp #$e3
+    bne _b1c6
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _b18c
+    rts
+
+_b18c:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _b199
+    jmp _b171
+_b199:
+    lda $342a
+    cmp #$04
+    beq _b1a5
+    cmp #$02
+    beq _b159
+    rts
+
+_b1a5:
+    inc $3808
+    lda $3422
+    cmp $3808
+    beq _b1b6
+    dec $3808
+    jmp _b171
+_b1b6:
+    lda $0b01
+    sta $342f
+    cmp #$07
+    bne _b1c3
+    jsr $b668
+_b1c3:
+    jmp _ae54
+_b1c6:
+    cmp #$e4
+    bne _b1f3
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _b1d5
+    rts
+
+_b1d5:
+    lda #$00
+    sta $3421
+    lda $342f
+    cmp #$07
+    bne _b1e6
+    lda #$fb
+    jmp _a3ef
+_b1e6:
+    cmp #$ff
+    beq _b1ee
+    cmp #$03
+    bcs _b202
+_b1ee:
+    lda #$fc
+    jmp _a3ef
+_b1f3:
+    cmp #$e9
+    bne _b214
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _b208
+    rts
+
+_b202:
+    lda #$e3
+    sta $3747
+    rts
+
+_b208:
+    lda $3823
+    sta $3747
+    lda #$00
+    sta $3421
+    rts
+
+_b214:
+    jmp _ae58
+    lda $3747
+    cmp #$d0
+    bne _b22b
+    lda #$00
+    sta $3421
+    lda #$0c
+    sta $37fb
+    jmp _ae54
+_b22b:
+    cmp #$d1
+    bne _b23d
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _b23a
+    rts
+
+_b23a:
+    jmp _ae54
+
+_b23d:
+    cmp #$d2
+    bne _b251
+    jsr $b762
+_b244:
+    lda #$08
+    sta $3804
+    lda #$00
+    sta $3421
+    jmp _ae54
+
+_b251:
+    cmp #$d3
+    bne _b260
+    jsr $bbce
+    lda $3421
+    cmp #$ff
+    beq _b244
+    rts
+
+_b260:
+    cmp #$d4
+    bne _b2b0
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _b274
+    lda $3804
+    beq _b28c
+    rts
+
+_b274:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcc _b28c
+    lda $342a
+    cmp #$05
+    beq _b29a
+    cmp #$02
+    bne _b28c
+    jmp _ae31
+_b28c:
+    lda #$d2
+    sta $3747
+    dec $37fb
+    bne _b299
+    jmp _adf4
+_b299:
+    rts
+
+_b29a:
+    lda $3422
+    cmp $3801
+    bne _b28c
+    inc $3801
+    lda #$00
+    sta $3421
+    inc $3747
+    jmp _b2b4
+_b2b0:
+    cmp #$d5
+    bne _b30d
+_b2b4:
+    jsr _ae5b
+    lda $3421
+    cmp #$ff
+    beq _b2bf
+    rts
+
+_b2bf:
+    lda #$00
+    sta $3421
+    jsr $bdfb
+    bcs _b2ca
+    rts
+
+_b2ca:
+    lda $342a
+    cmp #$02
+    beq _b2fd
+    cmp #$04
+    bne _b2fa
+    inc $3808
+    lda $3422
+    cmp $3808
+    beq _b2ef
+    dec $3808
+_b2e3:
+    lda $3747
+    sta $3823
+    lda #$d9
+    sta $3747
+    rts
+
+_b2ef:
+    lda $0b01
+    cmp #$02
+    beq _b300
+    cmp #$03
+    beq _b305
+_b2fa:
+    jmp _b2e3
+_b2fd:
+    jmp _ae31
+_b300:
+    lda #$fc
+    jmp _a3ef
+_b305:
+    jsr $b675
+    lda #$fe
+    jmp _a3ef
+_b30d:
+    cmp #$d9
+    bne _b328
+    jsr $b7c7
+    lda $3421
+    cmp #$ff
+    beq _b31c
+    rts
+
+_b31c:
+    lda #$00
+    sta $3421
+    lda $3823
+    sta $3747
+    rts
+
+_b328:
+    jmp _ae58
+
+_b32b:
+    ldx #$01
+    txa
+    sta $0b00,x
+    inx
+    sta $0b00,x
+    inx
+    sta $0b00,x
+    inx
+    sta $0b00,x
+    inx
+    lda #$06
+    sta $0b00,x
+    inx
+    lda #$02
+    sta $0b00,x
+    inx
+    lda #$01
+    sta $0b00,x
+    inx
+    lda $37d1
+    beq _b35a
+    lda #$08
+    jmp _b35c
+_b35a:
+    lda #$07
+_b35c:
+    sta $0b00,x
+    inx
+    lda #$03
+    sta $0b00,x
+    inx
+    lda #$08
+    sta $0b00,x
+    inx
+    ldy #$03
+_b36e:
+    lda $3796,y
+    and #$0f
+    ora #$30
+    sta $0b00,x
+    inx
+    lda $3796,y
+    lsr
+    lsr
+    lsr
+    lsr
+    ora #$30
+    sta $0b00,x
+    inx
+    dey
+    bpl _b36e
+    lda #$04
+    sta $0b00,x
+    inx
+    txa
+    pha
+    ldy #$00
+    ldx #$00
+_b395:
+    lda $3754,y
+    cmp #$3b
+    beq _b3a6
+    cmp #$20
+    beq _b3a1
+    inx
+_b3a1:
+    iny
+    cpy #$16
+    bne _b395
+_b3a6:
+    txa
+    tay
+    pla
+    tax
+    tya
+    sta $0b00,x
+    inx
+    ldy #$00
+_b3b1:
+    lda $3754,y
+    cmp #$3b
+    beq _b3c5
+    iny
+    cmp #$20
+    beq _b3c1
+    sta $0b00,x
+    inx
+_b3c1:
+    cpy #$16
+    bne _b3b1
+_b3c5:
+    ldy #$00
+    lda $37d1
+    beq _b3db
+_b3cc:
+    lda _b47c,y
+    sta $0b00,x
+    inx
+    iny
+    cpy #$0e
+    bcc _b3cc
+    jmp _b3e7
+_b3db:
+    lda _b48a,y
+    sta $0b00,x
+    inx
+    iny
+    cpy #$07
+    bcc _b3db
+_b3e7:
+    lda #$06
+    sta $0b00,x
+    inx
+    ldy #$00
+    lda #$00
+    sta $0b00,x
+_b3f4:
+    lda $376a,y
+    cmp #$3b
+    beq _b407
+    iny
+    cmp #$20
+    beq _b403
+    inc $0b00,x
+_b403:
+    cpy #$16
+    bne _b3f4
+_b407:
+    txa
+    pha
+    inx
+    ldy #$00
+_b40c:
+    lda $376a,y
+    cmp #$3b
+    beq _b420
+    cmp #$20
+    beq _b41b
+    sta $0b00,x
+    inx
+_b41b:
+    iny
+    cpy #$16
+    bne _b40c
+_b420:
+    lda $3747
+    and #$f0
+    cmp #$30
+    bne _b42d
+    pla
+    jmp _b45d
+_b42d:
+    lda #$2f
+    sta $0b00,x
+    ldy #$00
+_b434:
+    inx
+    lda $3433,y
+    and #$0f
+    ora #$30
+    sta $0b00,x
+    inx
+    lda $3433,y
+    lsr
+    lsr
+    lsr
+    lsr
+    ora #$30
+    sta $0b00,x
+    iny
+    cpy #$07
+    bne _b434
+    clc
+    pla
+    tay
+    lda $0b00,y
+    adc #$0f
+    sta $0b00,y
+    inx
+_b45d:
+    lda #$07
+    sta $0b00,x
+    inx
+    lda #$01
+    sta $0b00,x
+    inx
+    lda $37d1
+    beq _b470
+    lda #$01
+_b470:
+    sta $0b00,x
+    inx
+    stx $374c
+    dex
+    stx $0b00
+    rts
+
+_b47c:
+.byte $05,$0c,"~CTXFR      "
+_b48a:
+.byte $05,$05,"M2105"
+
+_b491:
+    ldx $0b00
+    dex
+    dex
+    ldy #$01
+_b498:
+    lda $0b02,y
+    sta $341b
+    iny
+    dex
+    bne _b4a3
+    rts
+
+_b4a3:
+    lda $0b02,y
+    sta $341a
+    iny
+    dex
+    bne _b4ae
+    rts
+
+_b4ae:
+    lda $341b
+    cmp #$01
+    bne _b4c3
+    lda $0b02,y
+    sta $342d
+    iny
+    dex
+    bne _b4c0
+    rts
+
+_b4c0:
+    jmp _b498
+
+_b4c3:
+    cmp #$02
+    bne _b4d5
+    lda $0b02,y
+    sta $342e
+    iny
+    dex
+    bne _b4d2
+    rts
+
+_b4d2:
+    jmp _b498
+_b4d5:
+    cmp #$03
+    bne _b524
+    lda #$03
+    sta $3420
+_b4de:
+    lda $341a
+    bne _b4e6
+    jmp _b498
+
+_b4e6:
+    dec $341a
+    lda $0b02,y
+    and #$0f
+    iny
+    sty $3800
+    ldy $3420
+    sta $379a,y
+    ldy $3800
+    lda $341a
+    beq _b4e6
+    dec $341a
+    lda $0b02,y
+    asl
+    asl
+    asl
+    asl
+    iny
+    sty $3800
+    ldy $3420
+    ora $379a,y
+    sta $379a,y
+    ldy $3800
+    dec $3420
+    dex
+    beq _b523
+    dex
+    bne _b4de
+_b523:
+    rts
+
+_b524:
+    cmp #$04
+    bne _b561
+    sty $380d
+    ldy #$00
+    lda #$20
+_b52f:
+    sta $3780,y
+    iny
+    cpy #$16
+    bne _b52f
+    ldy $380d
+    lda #$00
+    sta $380d
+_b53f:
+    lda $341a
+    bne _b547
+    jmp _b498
+_b547:
+    lda $0b02,y
+    sty $3800
+    ldy $380d
+    sta $3780,y
+    inc $380d
+    ldy $3800
+    dec $341a
+    iny
+    dex
+    bne _b53f
+    rts
+
+_b561:
+    cmp #$05
+    bne _b597
+    lda $341a
+    sta $37d2
+    sty $379f
+    lda #$00
+    sta $3420
+_b573:
+    lda $341a
+    bne _b57b
+    jmp _b498
+_b57b:
+    txa
+    pha
+    ldx $3420
+    cpx #$0c
+    bcs _b58a
+    lda $0b02,y
+    sta $37c5,x
+_b58a:
+    pla
+    tax
+    inc $3420
+    dec $341a
+    iny
+    dex
+    bne _b573
+    rts
+
+_b597:
