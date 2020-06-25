@@ -4919,13 +4919,18 @@ _a3fc:
     jmp _be12
 
 _a408:
-.byte $a4,$a4,$a4,$a6,$a8,$a9,$aa,$aa
-.byte $ab,$ac,$ac,$ae,$af,$b2,$b0,$ae
+.byte >[_a49d - 1],>[_a4a0 - 1],>[_a4a0 - 1],>[_a6f9 - 1],>[_a840 - 1]
+.byte >[_a954 - 1],>[_aa07 - 1],>[_aa38 - 1],>[_ab2b - 1],>[_aca6 - 1]
+.byte >[_acb0 - 1],>[_ae66 - 1],>[_afc1 - 1],>[_b217 - 1],>[_b0c8 - 1]
+.byte >[_ae58 - 1]
 _a418:
-.byte $ae
+.byte >[_ae58 - 1]
 _a419:
-.byte $9c,$9f,$9f,$f8,$3f,$53,$06
-.byte $37,$2a,$a5,$af,$65,$c0,$16,$c7,$57,$57
+.byte <[_a49d - 1],<[_a4a0 - 1],<[_a4a0 - 1],<[_a6f9 - 1],<[_a840 - 1]
+.byte <[_a954 - 1],<[_aa07 - 1],<[_aa38 - 1],<[_ab2b - 1],<[_aca6 - 1]
+.byte <[_acb0 - 1],<[_ae66 - 1],<[_afc1 - 1],<[_b217 - 1],<[_b0c8 - 1]
+.byte <[_ae58 - 1]
+.byte <[_ae58 - 1]
 
 _a42a:
     jsr _a466
@@ -4992,12 +4997,15 @@ _a48a:
     lsr
     lsr
     tax
-    lda _a408,x
+    lda _a408,x     ; Load the high byte (HH).
     pha
-    lda _a419,x
+    lda _a419,x     ; Load the low byte (LL).
     pha
-    rts
+    rts             ; Return via $HHLL + 1.
+
+_a49d:              ; Referenced in the table at a408.
     jmp _a3fa
+_a4a0:              ; Referenced in the table at a408.
     lda $3747
     cmp #$20
     bne _a4e9
@@ -5315,6 +5323,7 @@ _a6e9:
     lda #$28
     sta $3747
     rts
+_a6f9:              ; Referenced in the table at a408.
     lda $3747
     cmp #$30
     bne _a737
@@ -5490,7 +5499,7 @@ _a835:
     sta $3747
     rts
 
-_a840:
+_a840:              ; Referenced in the table at a408.
     lda $3747
     cmp #$40
     bne _a890
@@ -5636,6 +5645,7 @@ _a944:
     lda $380f
     sta $374c
     rts
+_a954:              ; Referenced in the table at a408.
     lda $3747
     cmp #$50
     bne _a968
@@ -5729,6 +5739,7 @@ _a9fd:
 _aa02:
     lda #$fe
     jmp _a3ef
+_aa07:              ; Referenced in the table at a408.
     lda $3747
     cmp #$60
     bne _aa26
@@ -5757,6 +5768,7 @@ _aa30:
 _aa33:
     lda #$d0
     jmp _a3ef
+_aa38:              ; Referenced in the table at a408.
     lda $3747
     cmp #$70
     bne _aa5b
@@ -5889,6 +5901,7 @@ _ab19:
     jmp _a3ea
 _ab28:
     jmp _ae58
+_ab2b:              ; Referenced in the table at a408.
     lda $3747
     cmp #$80
     bne _ab42
@@ -6096,10 +6109,12 @@ _ac9b:
     lda #$a0
     sta $374a
     jmp _a3ea
+_aca6:              ; Referenced in the table at a408.
     lda #$00
     sta $3749
     lda #$e0
     jmp _a3ef
+_acb0:              ; Referenced in the table at a408.
     lda $3747
     cmp #$a0
     bne _acef
@@ -6305,7 +6320,7 @@ _ae42:
 _ae54:
     inc $3747
     rts
-_ae58:
+_ae58:              ; Referenced in the table at a408.
     brk
     bpl _ae5b
 _ae5b:
@@ -6316,7 +6331,7 @@ _ae5b:
 _ae65:
     rts
 
-_ae66:
+_ae66:              ; Referenced in the table at a408.
     lda $3747
     cmp #$b0
     bne _ae7d
@@ -6502,6 +6517,7 @@ _afb2:
 
 _afbe:
     jmp _ae58
+_afc1:              ; Referenced in the table at a408.
     lda $3747
     cmp #$c0
     bne _afe6
@@ -6643,6 +6659,7 @@ _b0c0:
     jsr _b675
     lda #$fe
     jmp _a3ef
+_b0c8:              ; Referenced in the table at a408.
     lda $3747
     cmp #$e0
     bne _b0df
@@ -6827,6 +6844,7 @@ _b208:
 
 _b214:
     jmp _ae58
+_b217:              ; Referenced in the table at a408.
     lda $3747
     cmp #$d0
     bne _b22b
