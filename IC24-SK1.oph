@@ -12,6 +12,7 @@
 .alias OSBYTE $fff4
 .alias OSCLI  $fff7
 
+; Vectors for event, insert into buffer, remove from buffer.
 .alias EVNTV $0220
 .alias INSV  $022a
 .alias REMV  $022c
@@ -188,8 +189,8 @@ service_05:
 _8079:
     pha
     lda #$08
-    and VIA1_IER
-    bit VIA1_IFR
+    and VIA1_IER    ; If CB2 interrupt is enabled
+    bit VIA1_IFR    ; and set
         bne _80a2
 
     lda #$08
@@ -201,19 +202,19 @@ _8079:
 
 _8091:
     lda #$01
-    and VIA1_IER
-    bit VIA1_IFR
-    beq _809e
-    jmp _8b8c
+    and VIA1_IER    ; If CA2 interrupt is enabled
+    bit VIA1_IFR    ; and set
+    beq _809e       ; (if not)
+    jmp _8b8c       ; then 
 
 _809e:
     pla
     jmp ($3f00)     ; Jump to the address stored in $3f00 and $3f01.
 
 _80a2:
-    lda #$08
-
+    lda #$08        ; Clear the CB2 interrupt.
     sta VIA1_IFR
+
     lda $3f11
         beq _80d3
 
@@ -247,9 +248,9 @@ _80d3:
 
 _80e6:
     lda #$08
-    sta VIA1_IER
+    sta VIA1_IER        ; Disable the CB2 interrupt in VIA1.
     lda RAM_DUART_ISR
-    and #$f7
+    and #$f7            ; Disable the counter interrupt in the DUART.
     sta DUART_ISR
     sta RAM_DUART_ISR
     lda #$00
@@ -719,7 +720,7 @@ _8305:
 osbyte_43:
 _8307:
     lda $f0
-    jsr _8c33
+    jsr speech_get_byte
     sta $f0
     clc
     rts
@@ -728,8 +729,8 @@ _8307:
 
 osbyte_44:
 _8310:
-    lda $f0
-    jsr send_speech
+    lda $f0             ; OSBYTE X argument
+    jsr send_speech_command
     sta $f0
     clc
     rts
@@ -930,23 +931,23 @@ _8411:
     lda #$02
     ora $80
     sta $80
-    jsr _8cea
+    jsr duart_reset_mra
     txa
     cmp #$04
     beq _843b
-    lda DUART_MRA
-    and #$bf        ; Clear bit 6 (x0xxxxxx) (0=RxRDY, 1=FFULL)
-    jsr _8cea
+    lda DUART_MRA   ; Assume MR2A - SCN2681, p11.
+    and #$bf        ; Local loop, TxRTS, CTS enable Tx, stop bit length 2.000
+    jsr duart_reset_mra
     sta DUART_MRA
     jmp _8446
 _843b:
-    lda DUART_MRA
-    ora #$40        ; Set bit 6 (x1xxxxxx) (0=RxRDY, 1=FFULL)
-    jsr _8cea
+    lda DUART_MRA   ; Assume MR2A - SCN2681, p11.
+    ora #$40        ; Auto echo
+    jsr duart_reset_mra
     sta DUART_MRA
 _8446:
     lda RAM_DUART_ISR
-    ora $80
+    ora $80             ; Enable port change interrupt (SCN2681, p12).
     sta DUART_ISR
     sta RAM_DUART_ISR
     rts
@@ -955,30 +956,31 @@ osword_81_0d:
 _8452:
     lda $3f13
     and #$03
-    eor #$ff
+    eor #$ff            ; Toggle bits 0 and 1, set bits 2-7.
     and RAM_DUART_ISR
     sta DUART_ISR
     sta RAM_DUART_ISR
     rts
 
 osword_81_0e:   ; This is similar to osword_81_20
+duart_init_mra:
 _8463:
     jsr _8a3b
-    jsr _8cea
-    lda DUART_MRA
-    and #$e0        ; Clear bits 0 to 4 (xxx00000)
+    jsr duart_reset_mra
+    lda DUART_MRA   ; First MR1A.
+    and #$e0        ; Clear bits 0 to 4 (xxx00000) - see SCN2681, p11.
     sta $80
-    lda DUART_MRA
+    lda DUART_MRA   ; Now MR2A.
     and #$f0        ; Clear bits 0 to 3 (xxxx0000)
     sta $81
     lda $3f13
     sta $3f05
     jsr _848e
-    jsr _8cea
+    jsr duart_reset_mra
     lda $80
-    sta DUART_MRA
+    sta DUART_MRA   ; Write the masked value of MR1A.
     lda $81
-    sta DUART_MRA
+    sta DUART_MRA   ; Write the masked value of MR2A.
     rts
 _848e:
     lsr
@@ -1018,7 +1020,7 @@ _84c1:
     lda $3f06
     sta $3f16
     inc $3f15
-    jsr _8cea
+    jsr duart_reset_mra
     lda DUART_MRA
     lda $3f13
     sta $3f06
@@ -1131,19 +1133,19 @@ _8563:
     lda #$20
     ora $80
     sta $80
-    jsr _8cf2
+    jsr duart_reset_mrb
     txa
     cmp #$04
     beq _8587
     lda DUART_MRB
     and #$bf
-    jsr _8cf2
+    jsr duart_reset_mrb
     sta DUART_MRB
     jmp _8592
 _8587:
     lda DUART_MRB
     ora #$40
-    jsr _8cf2
+    jsr duart_reset_mrb
     sta DUART_MRB
 _8592:
     lda #$08
@@ -1250,11 +1252,11 @@ osword_81_1f:
 _8652:
     jsr _8a45
     lda $3f13
-    cmp #$06
+    cmp #$06        ; Only 0-5 allowed.
     bcs _8675
     sta $3f0a
     asl
-    tax
+    tax             ; X = one of {0, 2, 4, 6, 8, 10}
     lda _8676,x
     sta DUART_STOP_CC
     eor #$ff
@@ -1268,11 +1270,20 @@ _8675:
 
 _8676:
 .byte $18,$66,$50,$06,$30,$60,$18,$66,$00,$44,$08,$44
+; Assuming that these are setting baud rates for both transmitter and receiver
+; on channel B simultaneously to match those in the specifications;
+; e.g. 1200/75, 75/1200, 300/300, 1200/1200.
+
+; SCN2681, p14, the CSRA table maps values
+;           0   1   3   4   5   6    8
+; Set 1:    50  110 200 300 600 1200 2400 baud
+; Set 2:    75  110 150 300 600 1200 2400 baud
 
 osword_81_20:   ; This is similar to osword_81_0e
+duart_init_mrb:
 _8682:
     jsr _8a4f
-    jsr _8cf2
+    jsr duart_reset_mrb
     lda DUART_MRB
     and #$e0
     sta $80
@@ -1282,11 +1293,11 @@ _8682:
     lda $3f13
     sta $3f09
     jsr _848e
-    jsr _8cf2
+    jsr duart_reset_mrb
     lda $80
-    sta DUART_MRB
+    sta DUART_MRB       ; Write the masked value of MR1B.
     lda $81
-    sta DUART_MRB
+    sta DUART_MRB       ; Write the masked value of MR2B.
     rts
 
 osword_81_21:
@@ -1430,16 +1441,16 @@ _8768:
     sta RAM_DUART_ACR   ; See SCN2681, p16 and table 4.
     lda #$00
     sta DUART_IP
-    jsr _8cea
+    jsr duart_reset_mra
     lda #$00
-    sta DUART_MRA
-    sta DUART_MRA
-    lda #$00
-    sta $f0
-    jsr set_recv_baud_rate  ; _826e
+    sta DUART_MRA       ; Reset MR1A, which then makes MR2A available...
+    sta DUART_MRA       ; ...then reset it.
     lda #$00
     sta $f0
-    jsr set_send_baud_rate  ; _8298
+    jsr set_recv_baud_rate
+    lda #$00
+    sta $f0
+    jsr set_send_baud_rate
     lda #$0d                ; Disable events (EAUG, p30)
     ldx #$07                ; RS423 RX error event
     jsr OSBYTE
@@ -1448,20 +1459,20 @@ _8768:
     jsr _8381
     lda #$00
     sta $3f13
-    jsr _8463
+    jsr duart_init_mra
     lda #$ff
     sta $3f13
     jsr _84c1
-    jsr _8cf2
+    jsr duart_reset_mrb
     lda #$00
-    sta DUART_MRB
-    sta DUART_MRB
+    sta DUART_MRB       ; Reset MR1B, which then makes MR2B available...
+    sta DUART_MRB       ; ...then reset it.
     lda #$00
     sta $3f13
     jsr _8652
     lda #$00
     sta $3f13
-    jsr _8682
+    jsr duart_init_mrb
     lda #$80
     sta DUART_STOP_CC
     lda #$02
@@ -1741,12 +1752,12 @@ _8a00:
 osword_81_2e:
 _8a07:
     jsr _888c
-    lda #$08
+    lda #$08            ; Enable the CB2 active edge interrupt in VIA1.
     sta VIA1_IFR
     sta VIA1_IER
-    lda DUART_STOP_CC
+    lda DUART_STOP_CC   ; Stop the DUART counter.
     lda RAM_DUART_ISR
-    and #$f7
+    and #$f7            ; Clear the counter interrupt in the DUART.
     sta DUART_ISR
     sta RAM_DUART_ISR
     lda #$00
@@ -1763,7 +1774,7 @@ osword_81_2f:
 
 osword_81_30:
     lda #$80
-    sta DUART_START_CC
+    sta DUART_START_CC      ; Start the DUART counter.
     rts
 
 osword_81_31:
@@ -1879,17 +1890,17 @@ _8acd:
 ; $fe60-6f.
 
 _8ad4:
-    lda #$7f        ; Clear bits
-    sta VIA1_IFR    ; Interrupt flag register
-    sta VIA1_IER    ; Interrupt enable register
-    lda #$20
-    sta VIA1_PCR
+    lda #$7f        ; Clear all interrupts and disable them (NAUG, p401).
+    sta VIA1_IFR    ; Writing to bits 0-6 will also clear bit 7.
+    sta VIA1_IER    ; With bit 7=0, all interrupts are disabled.
+    lda #$20        ; $2x = CB2 control mode, positive edges active on input.
+    sta VIA1_PCR    ; $x0 = CA2 control mode, negative edges active on input.
     lda #$81
-    sta VIA1_IER
+    sta VIA1_IER    ; Enable (bit 7=1) CA2 (bit 0=1)
 
     lda #$00        ; Data direction (register A) input (all bits)
     sta VIA1_DDRA
-    lda #$63
+    lda #$63        ; Queue a value for writing?
     sta VIA1_RB
 
     lda #$63        ; Data direction (register B) rwwrrrww?
@@ -1909,8 +1920,8 @@ _8afe:              ; Delay for 2 * 254 loops (X * Y).
     lda #$63
     sta VIA1_RB
 
-    lda #$f0
-    jsr send_speech
+    lda #$f0        ; x111xxxx (Reset?)
+    jsr send_speech_command
     bcs _8b8b
     lda #$00
     sta $3f28
@@ -1930,24 +1941,24 @@ _8b2e:
     sta $3f2b
     dec $3f2a
     bmi _8b8b
-    jsr _8c82
-    jsr _8c66
+    jsr speech_load_address
+    jsr read_speech_byte
     cmp #$28
     bne _8b2e
-    jsr _8c66
+    jsr read_speech_byte
     cmp #$43
     bne _8b2e
-    jsr _8c66
+    jsr read_speech_byte
     cmp #$29
     bne _8b2e
     lda $3f2a
     sta $3f28
     lda #$3a
     sta $3f2b
-    jsr _8c82
-    jsr _8c66
+    jsr speech_load_address
+    jsr read_speech_byte
     sta $3f30
-    jsr _8c66
+    jsr read_speech_byte
     sta $3f31
     lda #$20        ; $3f2e,2f = 32
     sta $3f2e
@@ -1966,7 +1977,7 @@ _8b8b:
 
 _8b8c:
     lda #$01
-    sta VIA1_IFR
+    sta VIA1_IFR            ; Clear/acknowledge CA2 interrupt.
     jsr _8b97
     jmp claim_service_call
 _8b97:
@@ -1977,7 +1988,7 @@ _8b9c:
     bcs _8bf9
     tay
     beq _8bab
-    jsr _8c33
+    jsr speech_get_byte
     eor #$00
     bmi _8bf9
 _8bab:
@@ -1992,7 +2003,7 @@ _8bab:
     bpl _8be5
     bit $3f2a
     bvs _8bcf
-    jsr _8c82
+    jsr speech_load_address
     jmp enable_speech
 _8bcf:
     asl $3f2b
@@ -2005,20 +2016,20 @@ _8bd8:
     ldy #$ff    ; So, this clears the status, enabling speech.
     jsr OSBYTE
     txa
-    jmp send_speech
+    jmp send_speech_command
 _8be5:
-    jsr send_speech
+    jsr send_speech_command
 _8be8:
     lda $3f2b
-    jsr send_speech
+    jsr send_speech_command
     lda $3f2c
-    jsr send_speech
+    jsr send_speech_command
     lsr $3f29
     bne _8b9c
 _8bf9:
     rts
 
-send_speech:
+send_speech_command:
 _8bfa:              ; A=value to send to speech processor.
     php
     sei
@@ -2058,6 +2069,8 @@ _8c2d:
     plp
     sec
     rts
+
+speech_get_byte:
 _8c33:
     php
     sei
@@ -2090,32 +2103,37 @@ _8c4c:
     clc
     rts
 
+read_speech_byte:
 _8c66:
     php
     sei
-    lda #$10
-    jsr send_speech
-    jsr _8c33
+    lda #$10        ; x001xxxx (Read byte?)
+    jsr send_speech_command
+    jsr speech_get_byte
     plp
     rts
 
+speech_load_address_byte:
 _8c72:
     pha
-    jsr _8c7b
+    jsr speech_load_address_nybble
     pla
     lsr
     lsr
     lsr
     lsr
+speech_load_address_nybble:
 _8c7b:
     and #$0f
-    ora #$40        ; 0100xxxx  (Load address from ASSUG, p21?)
-    jmp send_speech
+    ora #$40        ; 0100xxxx  (Load address, ASSUG, p21)
+    jmp send_speech_command
+
+speech_load_address:    ; Send a 20 bit address.
 _8c82:
     php
     sei
     lda $3f2b
-    jsr _8c72
+    jsr speech_load_address_byte
     lda $3f2a
     sta $3f2d
     lda $3f2c
@@ -2125,16 +2143,17 @@ _8c82:
     ror
     lsr $3f2d
     ror
-    jsr _8c72
+    jsr speech_load_address_byte
     lda $3f2d
-    jsr _8c7b
+    jsr speech_load_address_nybble
     plp
     rts
+
 _8ca8:
-    jsr _8c82
+    jsr speech_load_address
     ldx #$00
 _8cad:
-    jsr _8c66
+    jsr read_speech_byte
     ldy #$08
 _8cb2:
     asl
@@ -2144,7 +2163,7 @@ _8cb2:
     inx
     cpx #$02
     bcc _8cad
-    jmp _8c82
+    jmp speech_load_address
 
 get_speech_buffer_status:
 _8cc1:
@@ -2172,12 +2191,16 @@ _8cdd:
 _8ce5:
     ldx #$08
     jmp (INSV)
+
+duart_reset_mra:
 _8cea:
     pha
     lda #$10        ; Reset MR pointer, channel A MR pointer is now MR1.
     sta DUART_CRA
     pla
     rts
+
+duart_reset_mrb:
 _8cf2:
     pha
     lda #$10        ; Reset MR pointer, channel B MR pointer is now MR1.
