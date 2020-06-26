@@ -1,8 +1,14 @@
 ; Disassembly and reassembly of the IC24-SK1.rom file for the BT Merlin M2105
 ; terminal.
+; References:
+; EAUG is the Electron Advanced User Guide.
+; ASSUG is the Acorn Speech System User Guide.
+; NAUG is the New Advanced User Guide (https://stardot.org.uk/forums/viewtopic.php?f=42&t=17243&p=268991)
+; SCN2681 is the Philips Semiconductors SCN2681 datasheet
 
 .alias OSASCI $ffe3
 .alias OSNEWL $ffe7
+.alias OSWORD $fff1
 .alias OSBYTE $fff4
 .alias OSCLI  $fff7
 
@@ -13,8 +19,8 @@
 ; Note: Uses these addresses in pages &FC and &FD:
 ;
 ; $fc50: 50 51 52 53 54 55 56 57 58 59 5a 5b    5d 5e 5f
-; $fc60: 60 61 62 63                         6c 6d 6e
-; $fc70: 70 71 72 73             78 79    7b 7c 7d 7e
+; $fc60: 60 61 62 63                         6c 6d 6e       (VIA)
+; $fc70: 70 71 72 73             78 79    7b 7c 7d 7e       (VIA)
 ; $fcf0:                                              ff
 ; $fd00: 00 01 02 03 04 05 06
 ; $fd10:                   16 17 18 19
@@ -24,11 +30,82 @@
 ; According to https://stardot.org.uk/forums/viewtopic.php?f=3&t=6184&sid=b09d047808f3c7987d1722f48b712c4d#p268262
 ;
 ;   The memory mapped devices are:
-;   FC50 SCN2681
-;   FC60 6522
-;   FC70 6522
+;   FC50 SCN2681 (DUART)
+;   FC60 6522 (VIA)
+;   FC70 6522 (VIA)
 ;
 ;   There's also 32K RAM in JIM, paged at FCFF.
+
+; Some tips on using a VIA:
+; https://stardot.org.uk/forums/viewtopic.php?f=3&t=14745&start=30#p197661
+
+; ACR   aux. control register
+; CC    counter command
+; CRA   command register A
+; CRB   command register B
+; CSRB  clock select register B
+; CTL   counter/timer lower value
+; CTU   counter/timer lower value
+; HRA   Rx holding register A (RHRA) or Tx holding register A (THRA)
+; HRB   Rx holding register B (RHRB) or Tx holding register B (THRB)
+; IP    input ports IP0 to IP6
+; IPCR  input port change register
+; ISR   interrupt status register
+; MRA   mode register A
+; MRB   mode register B
+; SRA   status register A
+; SRB   status register B
+
+.alias DUART_MRA $fc50
+.alias DUART_MR1A $fc50
+.alias DUART_MR2A $fc50
+.alias DUART_SRA $fc51
+.alias DUART_CRA $fc52
+.alias DUART_HRA $fc53
+.alias DUART_RHRA $fc53
+.alias DUART_THRA $fc53
+.alias DUART_IPCR $fc54
+.alias DUART_ACR $fc54
+.alias DUART_ISR $fc55
+.alias DUART_CTU $fc56
+.alias DUART_CTL $fc57
+.alias DUART_MRB $fc58
+.alias DUART_SRB $fc59
+.alias DUART_CSRB $fc59
+.alias DUART_CRB $fc5a
+.alias DUART_HRB $fc5b
+.alias DUART_RHRB $fc5b
+.alias DUART_THRB $fc5b
+.alias DUART_IP  $fc5d
+.alias DUART_START_CC $fc5e
+.alias DUART_STOP_CC $fc5f
+
+; ACR   auxiliary control register
+; DDR   data direction register
+; IER   interrupt enable register
+; IFR   interrupt flag register
+; PCR   peripheral control register
+; T2CL  T2 low-order latch/counter
+; T2CH  T2 high-order counter
+
+.alias VIA1_RB $fc60
+.alias VIA1_RA $fc61
+.alias VIA1_DDRB $fc62
+.alias VIA1_DDRA $fc63
+.alias VIA1_PCR $fc6c
+.alias VIA1_IFR $fc6d
+.alias VIA1_IER $fc6e
+
+.alias VIA2_RB $fc70
+.alias VIA2_RA $fc71
+.alias VIA2_DDRB $fc72
+.alias VIA2_DDRA $fc73
+.alias VIA2_T2CL $fc78
+.alias VIA2_T2CH $fc79
+.alias VIA2_ACR $fc7b
+.alias VIA2_PCR $fc7c
+.alias VIA2_IFR $fc7d
+.alias VIA2_IER $fc7e
 
 .org $8000
 
@@ -104,21 +181,21 @@ service_05:
 _8079:
     pha
     lda #$08
-    and $fc6e
-    bit $fc6d
+    and VIA1_IER
+    bit VIA1_IFR
         bne _80a2
 
     lda #$08
-    and $fc55
-    bit $fc55
+    and DUART_ISR
+    bit DUART_ISR
         beq _8091
 
     jmp _80fe
 
 _8091:
     lda #$01
-    and $fc6e
-    bit $fc6d
+    and VIA1_IER
+    bit VIA1_IFR
     beq _809e
     jmp _8b8c
 
@@ -129,16 +206,16 @@ _809e:
 _80a2:
     lda #$08
 
-    sta $fc6d
+    sta VIA1_IFR
     lda $3f11
         beq _80d3
 
     lda #$02
-    bit $fc70
+    bit VIA2_RB
     bne _80be
-    lda $fc70
+    lda VIA2_RB
     ora #$02
-    sta $fc70
+    sta VIA2_RB
     jmp claim_service_call
 
 _80be:
@@ -146,10 +223,10 @@ _80be:
         bne claim_service_call
 
     lda #$80
-    sta $fc57
+    sta DUART_CTL
     lda #$0d
-    sta $fc56
-    lda $fc5e
+    sta DUART_CTU
+    lda DUART_START_CC
     jmp claim_service_call
 
 _80d3:
@@ -163,20 +240,20 @@ _80d3:
 
 _80e6:
     lda #$08
-    sta $fc6e
+    sta VIA1_IER
     lda $3f02
     and #$f7
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     lda #$00
     sta $3f10
     jmp claim_service_call
 
 _80fe:
-    bit $fc5f
-    lda $fc70
+    bit DUART_STOP_CC
+    lda VIA2_RB
     and #$fd
-    sta $fc70
+    sta VIA2_RB
     lda #$00
     sta $3f11
     lda #$09
@@ -537,7 +614,7 @@ _827b:
     lda $3f04
     and #$0f
     ora $80
-    sta $fc51   ; modem?
+    sta DUART_SRA   ; modem?
     sta $3f04
     clc
     rts
@@ -557,7 +634,7 @@ _82a5:
     lda $3f04
     and #$f0
     ora $80
-    sta $fc51   ; modem?
+    sta DUART_SRA   ; modem?
     sta $3f04
     clc
     rts
@@ -573,8 +650,8 @@ _82c1: .byte $06,$00,$03,$04,$06,$08,$09,$0b,$0c,$01,$05,$0a
 
 osbyte_40:
 _82cd:
-    ldx $fc5d
-    stx $f0
+    ldx DUART_IP    ; Read the input ports.
+    stx $f0         ; Return the value from OSBYTE in X.
     clc
     rts
 
@@ -582,11 +659,11 @@ _82cd:
 
 osbyte_41:
 _82d4:
-    ldx $ee
-    lda $f0
-    stx $f0
-    sta $fcff
-    sta $ee
+    ldx $ee         ; 1MHz bus page number (EAUG, p188)
+    lda $f0         ; X value passed to OSBYTE
+    stx $f0         ; Store the page number in $f0 to return it from OSBYTE in X.
+    sta $fcff       ; Select page given by OSBYTE X argument.
+    sta $ee         ; 1MHz bus page number (EAUG, p188)
     clc
     rts
 
@@ -595,7 +672,7 @@ _82d4:
 osbyte_42:
 
 _82e1:
-    lda $fc70
+    lda VIA2_RB
     pha
     and #$40
     beq _82eb
@@ -609,12 +686,12 @@ _82eb:
     bne _82ff
     pla
     ora #$40
-    sta $fc70
+    sta VIA2_RB
     jmp _8305
 _82ff:
     pla
     and #$bf
-    sta $fc70
+    sta VIA2_RB
 _8305:
     clc
     rts
@@ -634,7 +711,7 @@ _8307:
 osbyte_44:
 _8310:
     lda $f0
-    jsr _8bfa
+    jsr send_speech
     sta $f0
     clc
     rts
@@ -690,49 +767,49 @@ _8347:
 
 osword_81_00:
 _834d:
-    lda #$04
-    sta $fc52
+    lda #$04        ; Enable channel A transmitter - TxRDY status bit will be
+    sta DUART_CRA   ; asserted.
     rts
 
 osword_81_01:
 _8353:
-    lda #$08
-    sta $fc52
+    lda #$08        ; Disable channel A transmitter, reset TxDRY and TxEMT.
+    sta DUART_CRA
     rts
 
 osword_81_02:
 _8359:
-    lda #$01
-    sta $fc52
+    lda #$01        ; Enable channel A receiver.
+    sta DUART_CRA
     rts
 
 osword_81_03:
 _835f:
-    lda #$02
-    sta $fc52
+    lda #$02        ; Disable channel A receiver.
+    sta DUART_CRA
     rts
 
 osword_81_04:
 _8365:
-    lda #$30
-    sta $fc52
+    lda #$30        ; Reset channel A transmitter.
+    sta DUART_CRA
     rts
 
 osword_81_05:
 _836b:
-    lda #$20
-    sta $fc52
+    lda #$20        ; Reset channel A receiver, flush FIFO.
+    sta DUART_CRA
     rts
 
 osword_81_06:
 _8371:
-    lda #$40
-    sta $fc52
+    lda #$40        ; Reset error status, clears channel A Received Break Parity
+    sta DUART_CRA   ; and Overrun Error bits.
     rts
 
 osword_81_07:
 _8377:
-    lda $fc5d
+    lda DUART_IP
     sta $3f16
     inc $3f15
     rts
@@ -743,10 +820,10 @@ _8381:
     and #$85
     bpl _838f
     and #$05
-    sta $fc5f
+    sta DUART_STOP_CC
     bpl _8392
 _838f:
-    sta $fc5e
+    sta DUART_START_CC
 _8392:
     rts
 
@@ -763,7 +840,7 @@ _8393:
     sta $3f17
     jmp _83e6
 _83a9:
-    lda $fc53               ; modem?
+    lda DUART_RHRA          ; Read from DUART channel A.
     sta $3f17
     lda #$f0
     bit $3f16
@@ -804,7 +881,7 @@ _83f0:
 
 osword_81_0a:
 _83f3:
-    lda $fc51
+    lda DUART_SRA           ; Read from DUART status register A.
     sta $3f16
     inc $3f15
     rts
@@ -812,7 +889,7 @@ _83f3:
 osword_81_0b:
 _83fd:
     lda $3f13
-    sta $fc53
+    sta DUART_THRA          ; Write to channel A.
     lda $3f06
     beq _8410
     lda #$01
@@ -839,20 +916,20 @@ _8411:
     txa
     cmp #$04
     beq _843b
-    lda $fc50
-    and #$bf
+    lda DUART_MRA
+    and #$bf        ; Clear bit 6 (x0xxxxxx) (0=RxRDY, 1=FFULL)
     jsr _8cea
-    sta $fc50
+    sta DUART_MRA
     jmp _8446
 _843b:
-    lda $fc50
-    ora #$40
+    lda DUART_MRA
+    ora #$40        ; Set bit 6 (x1xxxxxx) (0=RxRDY, 1=FFULL)
     jsr _8cea
-    sta $fc50
+    sta DUART_MRA
 _8446:
     lda $3f02
     ora $80
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     rts
 
@@ -862,7 +939,7 @@ _8452:
     and #$03
     eor #$ff
     and $3f02
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     rts
 
@@ -870,20 +947,20 @@ osword_81_0e:   ; This is similar to osword_81_20
 _8463:
     jsr _8a3b
     jsr _8cea
-    lda $fc50
-    and #$e0
+    lda DUART_MRA
+    and #$e0        ; Clear bits 0 to 4 (xxx00000)
     sta $80
-    lda $fc50
-    and #$f0
+    lda DUART_MRA
+    and #$f0        ; Clear bits 0 to 3 (xxxx0000)
     sta $81
     lda $3f13
     sta $3f05
     jsr _848e
     jsr _8cea
     lda $80
-    sta $fc50
+    sta DUART_MRA
     lda $81
-    sta $fc50
+    sta DUART_MRA
     rts
 _848e:
     lsr
@@ -924,61 +1001,61 @@ _84c1:
     sta $3f16
     inc $3f15
     jsr _8cea
-    lda $fc50
+    lda DUART_MRA
     lda $3f13
     sta $3f06
     bne _84e3
-    lda $fc50
-    and #$cf
-    sta $fc50
+    lda DUART_MRA
+    and #$cf        ; Clear bits 4 and 5 (xx00xxxx)
+    sta DUART_MRA
     jmp _84eb
 _84e3:
-    lda $fc50
-    ora #$30
-    sta $fc50
+    lda DUART_MRA
+    ora #$30        ; Set bits 4 and 5 (xx11xxxx)
+    sta DUART_MRA
 _84eb:
     rts
 
 osword_81_10:
 _84ec:
     lda #$04
-    sta $fc5a
+    sta DUART_CRB
     rts
 
 osword_81_11:
 _84f2:
     lda #$08
-    sta $fc5a
+    sta DUART_CRB
     rts
 
 osword_81_12:
 _84f8:
     lda #$01
-    sta $fc5a
+    sta DUART_CRB
     rts
 
 osword_81_13:
 _84fe:
     lda #$02
-    sta $fc5a
+    sta DUART_CRB
     rts
 
 osword_81_14:
 _8504:
     lda #$30
-    sta $fc5a
+    sta DUART_CRB
     rts
 
 osword_81_15:
 _850a:
     lda #$20
-    sta $fc5a
+    sta DUART_CRB
     rts
 
 osword_81_16:
 _8510:
     lda #$40
-    sta $fc5a
+    sta DUART_CRB
     rts
 
 osword_81_17:
@@ -987,10 +1064,10 @@ _8516:
     and #$82
     bpl _8525
     and #$02
-    sta $fc5f
+    sta DUART_STOP_CC
     jmp _8528
 _8525:
-    sta $fc5e
+    sta DUART_START_CC
 _8528:
     rts
 
@@ -1002,7 +1079,7 @@ osword_81_18:
     sta $3f17
     jmp _853f
 _8539:
-    lda $fc5b
+    lda DUART_RHRB
     sta $3f17
 _853f:
     inc $3f15
@@ -1010,14 +1087,14 @@ _853f:
 
 osword_81_19:
 _8543:
-    lda $fc59
+    lda DUART_SRB
     sta $3f16
     inc $3f15
     rts
 
 osword_81_1a:
     lda $3f13
-    sta $fc5b
+    sta DUART_THRB
     rts
 
 osword_81_1b:
@@ -1040,23 +1117,23 @@ _8563:
     txa
     cmp #$04
     beq _8587
-    lda $fc58
+    lda DUART_MRB
     and #$bf
     jsr _8cf2
-    sta $fc58
+    sta DUART_MRB
     jmp _8592
 _8587:
-    lda $fc58
+    lda DUART_MRB
     ora #$40
     jsr _8cf2
-    sta $fc58
+    sta DUART_MRB
 _8592:
     lda #$08
     bit $3f13
     beq _85a7
     lda #$08
     jsr _85c8
-    bit $fc54
+    bit DUART_IPCR
     lda $80
     ora #$80
     sta $80
@@ -1066,20 +1143,20 @@ _85a7:
     beq _85bc
     lda #$04
     jsr _85c8
-    bit $fc54
+    bit DUART_IPCR
     lda $80
     ora #$80
     sta $80
 _85bc:
     lda $3f02
     ora $80
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     rts
 
 _85c8:
     ora $3f03
-    sta $fc54
+    sta DUART_ACR
     sta $3f03
     rts
 
@@ -1094,14 +1171,14 @@ _85d2:
     and #$30
     eor #$ff
     and $3f02
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     bit $80
     bvc _8609
     bpl _8601
     lda #$7f
     and $3f02
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     lda #$f3
     jsr _8614
@@ -1115,31 +1192,31 @@ _8609:
     lda #$fb
     jsr _8614
 _8610:
-    bit $fc54
+    bit DUART_IPCR
 _8613:
     rts
 
 _8614:
     and $3f03
-    sta $fc54
+    sta DUART_ACR
     sta $3f03
     rts
 
 osword_81_1d:
     lda $3f13
-    sta $fc78
+    sta VIA2_T2CL
     lda $3f14
-    sta $fc79
+    sta VIA2_T2CH
     rts
 
 osword_81_1e:
-    lda $fc78
-    ldx $fc79
+    lda VIA2_T2CL
+    ldx VIA2_T2CH
     sta $3f16
     stx $3f17
-    lda $fc78
+    lda VIA2_T2CL
     beq _864c
-    ldx $fc79
+    ldx VIA2_T2CH
     lda $3f16
     bne _864c
     cpx $3f17
@@ -1160,13 +1237,13 @@ _8652:
     asl
     tax
     lda _8676,x
-    sta $fc5f
+    sta DUART_STOP_CC
     eor #$ff
     and #$78
-    sta $fc5e
+    sta DUART_START_CC
     inx
     lda _8676,x
-    sta $fc59
+    sta DUART_CSRB
 _8675:
     rts
 
@@ -1177,10 +1254,10 @@ osword_81_20:   ; This is similar to osword_81_0e
 _8682:
     jsr _8a4f
     jsr _8cf2
-    lda $fc58
+    lda DUART_MRB
     and #$e0
     sta $80
-    lda $fc58
+    lda DUART_MRB
     and #$f0
     sta $81
     lda $3f13
@@ -1188,18 +1265,18 @@ _8682:
     jsr _848e
     jsr _8cf2
     lda $80
-    sta $fc58
+    sta DUART_MRB
     lda $81
-    sta $fc58
+    sta DUART_MRB
     rts
 
 osword_81_21:
     lda $3f13
-    sta $fc71
+    sta VIA2_RA
     rts
 
 osword_81_22:
-    lda $fc70
+    lda VIA2_RB
     and #$81
     sta $3f16
     inc $3f15
@@ -1212,20 +1289,20 @@ osword_81_23:
     lsr
     bcc _86cf
     ldx #$82
-    stx $fc7e
+    stx VIA2_IER
 _86cf:
     lsr
     bcc _8702
-    lda $fc70
+    lda VIA2_RB
     bpl _86e2
-    lda $fc7c
+    lda VIA2_PCR
     and #$bf
-    sta $fc7c
+    sta VIA2_PCR
     jmp _86ea
 _86e2:
-    lda $fc7c
+    lda VIA2_PCR
     ora #$40
-    sta $fc7c
+    sta VIA2_PCR
 _86ea:
     ldx #$88
     jmp _86ff
@@ -1233,24 +1310,24 @@ _86ef:
     lsr
     bcc _86f7
     ldx #$02
-    stx $fc7e
+    stx VIA2_IER
 _86f7:
     lsr
     bcc _8702
     ldx #$08
-    stx $fc7d
+    stx VIA2_IFR
 _86ff:
-    stx $fc7e
+    stx VIA2_IER
 _8702:
     rts
 
 osword_81_24:
     lda #$00
     sta $80
-    lda $fc55
+    lda DUART_ISR
     tax
     bpl _8725
-    lda $fc54
+    lda DUART_IPCR
     bmi _871f
     and #$40
     beq _8725
@@ -1284,14 +1361,14 @@ _8725:
     ora $80
     sta $80
     lda #$02
-    bit $fc7d
+    bit VIA2_IFR
     beq _8752
     lda #$40
     ora $80
     sta $80
 _8752:
     lda #$08
-    bit $fc7d
+    bit VIA2_IFR
     beq _875f
     lda #$20
     ora $80
@@ -1305,16 +1382,16 @@ _875f:
 osword_81_25:
 _8768:
     lda #$00
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     lda #$0f
     sta $3f13
     jsr _85d2
     lda #$7f
-    sta $fc7e
-    sta $fc7d
-    sta $fc6e
-    sta $fc6d
+    sta VIA2_IER
+    sta VIA2_IFR
+    sta VIA1_IER
+    sta VIA1_IFR
     lda #$16        ; Stores the address $8116 in $3f00.
     sta $3f00       ; See _809e for where this is used.
     lda #$81
@@ -1330,14 +1407,14 @@ _8768:
     lda $f1
     pha
     lda #$b0
-    sta $fc54
+    sta DUART_ACR
     sta $3f03
     lda #$00
-    sta $fc5d
+    sta DUART_IP
     jsr _8cea
     lda #$00
-    sta $fc50
-    sta $fc50
+    sta DUART_MRA
+    sta DUART_MRA
     lda #$00
     sta $f0
     jsr set_recv_baud_rate  ; _826e
@@ -1358,8 +1435,8 @@ _8768:
     jsr _84c1
     jsr _8cf2
     lda #$00
-    sta $fc58
-    sta $fc58
+    sta DUART_MRB
+    sta DUART_MRB
     lda #$00
     sta $3f13
     jsr _8652
@@ -1367,18 +1444,18 @@ _8768:
     sta $3f13
     jsr _8682
     lda #$80
-    sta $fc5f
+    sta DUART_STOP_CC
     lda #$02
     sta $3f13
     jsr _8516
     lda #$ff
-    sta $fc73
+    sta VIA2_DDRA
     lda #$36
-    sta $fc72
+    sta VIA2_DDRB
     lda #$20
-    sta $fc7b
+    sta VIA2_ACR
     lda #$6b
-    sta $fc7c
+    sta VIA2_PCR
     lda #$00
     sta $f0
     jsr _82d4
@@ -1396,13 +1473,13 @@ _8842:
     pha
 _8845:
     lda #$00
-    sta $fc57
+    sta DUART_CTL
     lda #$5a
-    sta $fc56
-    lda $fc5e
+    sta DUART_CTU
+    lda DUART_START_CC
 _8852:
     jsr _8881
-    lda $fc55
+    lda DUART_ISR
     and #$08
     beq _8852
     lda #$82
@@ -1427,19 +1504,19 @@ osword_81_26:
 
 osword_81_27:
 _8881:
-    lda $fc70
+    lda VIA2_RB
     ora #$04
     and #$fd
-    sta $fc70
+    sta VIA2_RB
     rts
 
 osword_81_28:
 _888c:
     lda #$80
-    sta $fc5f
-    lda $fc70
+    sta DUART_STOP_CC
+    lda VIA2_RB
     and #$f9
-    sta $fc70
+    sta VIA2_RB
     rts
 
 osword_81_29:
@@ -1458,11 +1535,11 @@ osword_81_29:
     jsr _88d0
     lda $3f02
     ora #$08
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     lda #$88
-    sta $fc6d
-    sta $fc6e
+    sta VIA1_IFR
+    sta VIA1_IER
 _88cf:
     rts
 
@@ -1504,7 +1581,7 @@ _8905:
 
 osword_81_2a:
 _890e:
-    lda $fc60
+    lda VIA1_RB
     tax
     and #$20
     beq _891b
@@ -1543,7 +1620,7 @@ _894d:
 _8952:
     and #$bf
 _8954:
-    sta $fc60
+    sta VIA1_RB
     rts
 
 osword_81_2b:
@@ -1632,7 +1709,7 @@ osword_81_2c:
     rts
 
 osword_81_2d:
-    lda $fc70
+    lda VIA2_RB
     and #$04
     ldx $3f10
     beq _8a00
@@ -1646,12 +1723,12 @@ osword_81_2e:
 _8a07:
     jsr _888c
     lda #$08
-    sta $fc6d
-    sta $fc6e
-    lda $fc5f
+    sta VIA1_IFR
+    sta VIA1_IER
+    lda DUART_STOP_CC
     lda $3f02
     and #$f7
-    sta $fc55
+    sta DUART_ISR
     sta $3f02
     lda #$00
     sta $3f10
@@ -1667,7 +1744,7 @@ osword_81_2f:
 
 osword_81_30:
     lda #$80
-    sta $fc5e
+    sta DUART_START_CC
     rts
 
 osword_81_31:
@@ -1693,14 +1770,14 @@ _8a4f:
 
 osword_81_34:
     lda $3f13
-    and #$70
-    sta $fc52
+    and #$70        ; Retain the command but clear the transmitter bits.
+    sta DUART_CRA
     rts
 
 osword_81_35:
     lda $3f13
-    and #$70
-    sta $fc5a
+    and #$70        ; Retain the command but clear the transmitter bits.
+    sta DUART_CRB
     rts
 
 osword_81_36:
@@ -1711,7 +1788,7 @@ osword_81_36:
 
 _8a74: .byte $ff
 
-; Handler for OSWORD &07
+; Handler for OSWORD &07 (perform a SOUND command; EAUG, p88)
 _osword_07:
 _8a75:
     jmp _8a78
@@ -1779,41 +1856,49 @@ _8acd:
     lda #$00
     rts
 
+; See NAUG p387 for information about the VIA, mapped at $fc60-6f instead of
+; $fe60-6f.
+
 _8ad4:
-    lda #$7f
-    sta $fc6d
-    sta $fc6e
+    lda #$7f        ; Clear bits
+    sta VIA1_IFR    ; Interrupt flag register
+    sta VIA1_IER    ; Interrupt enable register
     lda #$20
-    sta $fc6c
+    sta VIA1_PCR
     lda #$81
-    sta $fc6e
-    lda #$00
-    sta $fc63
+    sta VIA1_IER
+
+    lda #$00        ; Data direction (register A) input (all bits)
+    sta VIA1_DDRA
     lda #$63
-    sta $fc60
-    lda #$63
-    sta $fc62
+    sta VIA1_RB
+
+    lda #$63        ; Data direction (register B) rwwrrrww?
+    sta VIA1_DDRB
+
     ldy #$f0
     ldx #$02
-    lda #$60
-    sta $fc60
-_8afe:
+    lda #$60        ; x110xxxx (Speak External?)
+    sta VIA1_RB
+_8afe:              ; Delay for 2 * 254 loops (X * Y).
     dey
     bne _8afe
     ldy #$f0
     dex
     bne _8afe
+
     lda #$63
-    sta $fc60
+    sta VIA1_RB
+
     lda #$f0
-    jsr _8bfa
+    jsr send_speech
     bcs _8b8b
     lda #$00
     sta $3f28
-    lda #$00
+    lda #$00        ; $3f2e,2f = 0
     sta $3f2e
     sta $3f2f
-    lda #$ff
+    lda #$ff        ; $3f30,31 = 8191
     sta $3f30
     lda #$1f
     sta $3f31
@@ -1845,11 +1930,11 @@ _8b2e:
     sta $3f30
     jsr _8c66
     sta $3f31
-    lda #$20
+    lda #$20        ; $3f2e,2f = 32
     sta $3f2e
     lda #$00
     sta $3f2f
-    lda #$1f
+    lda #$1f        ; Add 31 to $3f30,31.
     clc
     adc $3f30
     sta $3f30
@@ -1862,7 +1947,7 @@ _8b8b:
 
 _8b8c:
     lda #$01
-    sta $fc6d
+    sta VIA1_IFR
     jsr _8b97
     jmp claim_service_call
 _8b97:
@@ -1901,32 +1986,33 @@ _8bd8:
     ldy #$ff    ; So, this clears the status, enabling speech.
     jsr OSBYTE
     txa
-    jmp _8bfa
+    jmp send_speech
 _8be5:
-    jsr _8bfa
+    jsr send_speech
 _8be8:
     lda $3f2b
-    jsr _8bfa
+    jsr send_speech
     lda $3f2c
-    jsr _8bfa
+    jsr send_speech
     lsr $3f29
     bne _8b9c
 _8bf9:
     rts
 
-_8bfa:
+send_speech:
+_8bfa:              ; A=value to send to speech processor.
     php
     sei
     pha
-    lda #$ff
-    sta $fc63
+    lda #$ff        ; Set VIA (6522) register A as output.
+    sta VIA1_DDRA
     pla
-    sta $fc61
+    sta VIA1_RA     ; Send the value.
     pha
-    lda $fc60
+    lda VIA1_RB
     ora #$03
     eor #$01
-    sta $fc60
+    sta VIA1_RB
     tya
     pha
     lda #$04
@@ -1934,13 +2020,13 @@ _8bfa:
 _8c17:
     dey
     beq _8c2d
-    bit $fc60
+    bit VIA1_RB
     bne _8c17
     pla
     tay
-    lda $fc60
+    lda VIA1_RB
     ora #$03
-    sta $fc60
+    sta VIA1_RB
     pla
     plp
     clc
@@ -1957,12 +2043,12 @@ _8c33:
     php
     sei
     pha
-    lda #$00
-    sta $fc63
-    lda $fc60
+    lda #$00        ; Set speech VIA register A as input.
+    sta VIA1_DDRA
+    lda VIA1_RB     ; Read from register B.
     ora #$03
     eor #$02
-    sta $fc60
+    sta VIA1_RB
     pla
     tay
     pha
@@ -1971,15 +2057,15 @@ _8c33:
 _8c4c:
     dey
     beq _8c2d
-    bit $fc60
+    bit VIA1_RB
     bne _8c4c
     pla
     tay
-    lda $fc61
+    lda VIA1_RA     ; Register A
     pha
-    lda $fc60
+    lda VIA1_RB     ; Register B
     ora #$03
-    sta $fc60
+    sta VIA1_RB
     pla
     plp
     clc
@@ -1989,7 +2075,7 @@ _8c66:
     php
     sei
     lda #$10
-    jsr _8bfa
+    jsr send_speech
     jsr _8c33
     plp
     rts
@@ -2004,8 +2090,8 @@ _8c72:
     lsr
 _8c7b:
     and #$0f
-    ora #$40
-    jmp _8bfa
+    ora #$40        ; 0100xxxx  (Load address from ASSUG, p21?)
+    jmp send_speech
 _8c82:
     php
     sei
@@ -2069,14 +2155,14 @@ _8ce5:
     jmp (INSV)
 _8cea:
     pha
-    lda #$10
-    sta $fc52
+    lda #$10        ; Reset MR pointer, channel A MR pointer is now MR1.
+    sta DUART_CRA
     pla
     rts
 _8cf2:
     pha
-    lda #$10
-    sta $fc5a
+    lda #$10        ; Reset MR pointer, channel B MR pointer is now MR1.
+    sta DUART_CRB
     pla
     rts
 
@@ -2952,6 +3038,7 @@ _9419:
 _9421:
 .byte $00,$06,$0f,$09,$0a,$05,$07,$08
 
+; Map inputs that match those in the first row to outputs in the second row.
 _9429:
     ldy #$07
 _942b:
@@ -2959,10 +3046,10 @@ _942b:
     beq _9436
     dey
     bne _942b
-    brk
+    brk             ; Cause an error condition then continue.
     beq _9436
 _9436:
-    lda _9421,y
+    lda _9421,y     ; Return the output value.
     rts
 swap_data:
 _943a:
@@ -4564,7 +4651,7 @@ _a0d8:
     jsr $3300
     lda $37d3
     beq _a0f3
-    lda #$0c
+    lda #$0c        ; Clear screen.
     jsr $ffee
     lda #$7d
     sta $2d
@@ -4728,7 +4815,7 @@ _a20b:
     jmp _a1c6
 
 _a215:
-    lda #$0c
+    lda #$0c        ; Clear screen.
     jsr $ffee
     ldx #$23
     stx $2d
@@ -8445,8 +8532,8 @@ _bd24:
 
 _bd2a:
     jsr _bd5f
-    lda #$40
-    jsr $fff4
+    lda #$40        ; Undocumented in the EAUG, implemented in osbyte_40.
+    jsr OSBYTE
     txa
     and #$08
     beq _bd3b
@@ -8545,8 +8632,8 @@ _bdd8:
 
 _bddb:
     jsr _bd5f
-    lda #$40
-    jsr $fff4
+    lda #$40        ; Undocumented in the EAUG, implemented in osbyte_40.
+    jsr OSBYTE
     txa
     and #$02
     beq _bdec
@@ -8582,10 +8669,10 @@ _be12:
     ldx #$03
     jmp $3354
 _be19:
-    lda #$01
+    lda #$01        ; Read system clock.
     ldx #$f6
     ldy #$37
-    jsr $fff1
+    jsr OSWORD
     lda $37f6
     cmp $3806
     bne _be2b
