@@ -94,6 +94,7 @@
 ; T2CL  T2 low-order latch/counter
 ; T2CH  T2 high-order counter
 
+; VIA1 is used to communicate with the speech system.
 .alias VIA1_RB $fc60
 .alias VIA1_RA $fc61
 .alias VIA1_DDRB $fc62
@@ -228,11 +229,11 @@ _80be:
     dec $3f0b
         bne claim_service_call
 
-    lda #$80
+    lda #$80                ; Set the counter according to SCN2681, p17.
     sta DUART_CTL
     lda #$0d
     sta DUART_CTU
-    lda DUART_START_CC
+    lda DUART_START_CC      ; Reading this register starts the counter.
     jmp claim_service_call
 
 _80d3:
@@ -1185,8 +1186,8 @@ _85d2:
     asl
     asl
     sta $80
-    and #$30
-    eor #$ff
+    and #$30            ; Toggle bits 7 and 6, set bits 0-5.
+    eor #$ff            ; See SCN2681, p12.
     and RAM_DUART_ISR
     sta DUART_ISR
     sta RAM_DUART_ISR
@@ -1198,21 +1199,22 @@ _85d2:
     sta DUART_ISR
     sta RAM_DUART_ISR
     lda #$f3
-    jsr _8614
+    jsr mask_duart_acr
     jmp _8610
 _8601:
     lda #$f7
-    jsr _8614
+    jsr mask_duart_acr
     jmp _8610
 _8609:
     bpl _8613
     lda #$fb
-    jsr _8614
+    jsr mask_duart_acr
 _8610:
     bit DUART_IPCR
 _8613:
     rts
 
+mask_duart_acr:
 _8614:
     and RAM_DUART_ACR
     sta DUART_ACR
@@ -1423,9 +1425,9 @@ _8768:
     pha
     lda $f1         ; Save the Y value passed to the OSWORD call.
     pha
-    lda #$b0            ; Set ACR bits 7 (baud set 2), 4 and 5 (counter/timer
-    sta DUART_ACR       ; mode and source). See SCN2681, p16 and table 4.
-    sta RAM_DUART_ACR
+    lda #$b0            ; Set ACR bits 7 (baud set 2), 4 and 5 (counter mode,
+    sta DUART_ACR       ; crystal or external clock divided by 16).
+    sta RAM_DUART_ACR   ; See SCN2681, p16 and table 4.
     lda #$00
     sta DUART_IP
     jsr _8cea
@@ -1489,16 +1491,16 @@ _8842:
     lda #$00
     pha
 _8845:
-    lda #$00
+    lda #$00            ; Set the counter.
     sta DUART_CTL
     lda #$5a
     sta DUART_CTU
-    lda DUART_START_CC
+    lda DUART_START_CC  ; Start the counter.
 _8852:
     jsr _8881
-    lda DUART_ISR
-    and #$08
-    beq _8852
+    lda DUART_ISR       ; Read the interrupt status.
+    and #$08            ; Check for the counter interrupt.
+    beq _8852           ; Wait until it is set.
     lda #$82
     sta $3f13
     jsr _8516
