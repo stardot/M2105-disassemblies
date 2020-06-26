@@ -43,6 +43,7 @@
 ; CC    counter command
 ; CRA   command register A
 ; CRB   command register B
+; CSRB  clock select register A
 ; CSRB  clock select register B
 ; CTL   counter/timer lower value
 ; CTU   counter/timer lower value
@@ -60,6 +61,7 @@
 .alias DUART_MR1A $fc50
 .alias DUART_MR2A $fc50
 .alias DUART_SRA $fc51
+.alias DUART_CSRA $fc51
 .alias DUART_CRA $fc52
 .alias DUART_HRA $fc53
 .alias DUART_RHRA $fc53
@@ -79,6 +81,10 @@
 .alias DUART_IP  $fc5d
 .alias DUART_START_CC $fc5e
 .alias DUART_STOP_CC $fc5f
+
+.alias RAM_DUART_ISR $3f02
+.alias RAM_DUART_ACR $3f03
+.alias RAM_DUART_SRA $3f04
 
 ; ACR   auxiliary control register
 ; DDR   data direction register
@@ -241,10 +247,10 @@ _80d3:
 _80e6:
     lda #$08
     sta VIA1_IER
-    lda $3f02
+    lda RAM_DUART_ISR
     and #$f7
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     lda #$00
     sta $3f10
     jmp claim_service_call
@@ -596,6 +602,9 @@ _826d:
 ; OSBYTE routines
 
 ; OSBYTE 7 (Set RS423 baud rate for receiving data, EAUG, p28)
+; From http://beebwiki.mdfs.net/OSBYTE_%2607
+; X     1     2       3       4       5       6       7       8
+; baud  75    150     300     1200    2400    4800    9600    19200
 set_recv_baud_rate:
 _826e:
     ldx $3f07
@@ -606,20 +615,23 @@ _826e:
     lda #$00
 _827b:
     sta $3f07
-    jsr _82ba
+    jsr baud_rate_to_csra
     asl $80
     asl $80
     asl $80
     asl $80
-    lda $3f04
-    and #$0f
-    ora $80
-    sta DUART_SRA   ; modem?
-    sta $3f04
+    lda RAM_DUART_SRA
+    and #$0f            ; Clear receiver bits, keep transmitter bits.
+    ora $80             ; Apply the new reception rate.
+    sta DUART_CSRA
+    sta RAM_DUART_SRA
     clc
     rts
 
 ; OSBYTE 8 (Set RS423 baud rate for data transmission, EAUG, p28)
+; From http://beebwiki.mdfs.net/OSBYTE_%2608
+; X     1     2       3       4       5       6       7       8
+; baud  75    150     300     1200    2400    4800    9600    19200
 set_send_baud_rate:
 _8298:
     ldx $3f08
@@ -630,28 +642,33 @@ _8298:
     lda #$00
 _82a5:
     sta $3f08
-    jsr _82ba
-    lda $3f04
-    and #$f0
-    ora $80
-    sta DUART_SRA   ; modem?
-    sta $3f04
+    jsr baud_rate_to_csra
+    lda RAM_DUART_SRA
+    and #$f0            ; Clear transmitter bits, keep receiver bits.
+    ora $80             ; Apply the new transmission rate.
+    sta DUART_CSRA
+    sta RAM_DUART_SRA
     clc
     rts
-_82ba:
+
+baud_rate_to_csra:
+_82ba:          ; Map A to a value in the array below, returning it in A.
     tay
     lda _82c1,y
     sta $80
     rts
 
-_82c1: .byte $06,$00,$03,$04,$06,$08,$09,$0b,$0c,$01,$05,$0a
+; OSWORD X        1   2   3   4   5    6    7    8     9    10   11
+_82c1: .byte $06,$00,$03,$04,$06, $08, $09, $0b, $0c,  $01, $05, $0a
+; SCN2681, p14, the CSRA table with ACR[7]=1 (set 2) maps these values to
+;                75  150 300 1200 2400 4800 9600 19200 110  600  1800 baud
 
 ; OSBYTE &40
 
 osbyte_40:
 _82cd:
     ldx DUART_IP    ; Read the input ports.
-    stx $f0         ; Return the value from OSBYTE in X.
+    stx $f0         ; Make the OSBYTE call return the value in X.
     clc
     rts
 
@@ -927,10 +944,10 @@ _843b:
     jsr _8cea
     sta DUART_MRA
 _8446:
-    lda $3f02
+    lda RAM_DUART_ISR
     ora $80
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     rts
 
 osword_81_0d:
@@ -938,9 +955,9 @@ _8452:
     lda $3f13
     and #$03
     eor #$ff
-    and $3f02
+    and RAM_DUART_ISR
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     rts
 
 osword_81_0e:   ; This is similar to osword_81_20
@@ -1148,16 +1165,16 @@ _85a7:
     ora #$80
     sta $80
 _85bc:
-    lda $3f02
+    lda RAM_DUART_ISR
     ora $80
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     rts
 
 _85c8:
-    ora $3f03
+    ora RAM_DUART_ACR
     sta DUART_ACR
-    sta $3f03
+    sta RAM_DUART_ACR
     rts
 
 osword_81_1c:
@@ -1170,16 +1187,16 @@ _85d2:
     sta $80
     and #$30
     eor #$ff
-    and $3f02
+    and RAM_DUART_ISR
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     bit $80
     bvc _8609
     bpl _8601
     lda #$7f
-    and $3f02
+    and RAM_DUART_ISR
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     lda #$f3
     jsr _8614
     jmp _8610
@@ -1197,9 +1214,9 @@ _8613:
     rts
 
 _8614:
-    and $3f03
+    and RAM_DUART_ACR
     sta DUART_ACR
-    sta $3f03
+    sta RAM_DUART_ACR
     rts
 
 osword_81_1d:
@@ -1383,7 +1400,7 @@ osword_81_25:
 _8768:
     lda #$00
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     lda #$0f
     sta $3f13
     jsr _85d2
@@ -1402,13 +1419,13 @@ _8768:
     jsr _8504
     jsr _850a
     jsr _8510
-    lda $f0
+    lda $f0         ; Save the X value passed to the OSWORD call.
     pha
-    lda $f1
+    lda $f1         ; Save the Y value passed to the OSWORD call.
     pha
-    lda #$b0
-    sta DUART_ACR
-    sta $3f03
+    lda #$b0            ; Set ACR bits 7 (baud set 2), 4 and 5 (counter/timer
+    sta DUART_ACR       ; mode and source). See SCN2681, p16 and table 4.
+    sta RAM_DUART_ACR
     lda #$00
     sta DUART_IP
     jsr _8cea
@@ -1533,10 +1550,10 @@ osword_81_29:
     ldy #$05
     sty $3f0e
     jsr _88d0
-    lda $3f02
+    lda RAM_DUART_ISR
     ora #$08
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     lda #$88
     sta VIA1_IFR
     sta VIA1_IER
@@ -1726,10 +1743,10 @@ _8a07:
     sta VIA1_IFR
     sta VIA1_IER
     lda DUART_STOP_CC
-    lda $3f02
+    lda RAM_DUART_ISR
     and #$f7
     sta DUART_ISR
-    sta $3f02
+    sta RAM_DUART_ISR
     lda #$00
     sta $3f10
     rts
