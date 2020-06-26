@@ -1478,14 +1478,14 @@ _8768:
     lda #$02
     sta $3f13
     jsr _8516
-    lda #$ff
+    lda #$ff            ; Make VIA2 register A an output.
     sta VIA2_DDRA
-    lda #$36
+    lda #$36            ; Make VIA2 register B input/output (rrwwrwwr).
     sta VIA2_DDRB
-    lda #$20
+    lda #$20            ; Count down with pulses on PB6 (NAUG, p395).
     sta VIA2_ACR
-    lda #$6b
-    sta VIA2_PCR
+    lda #$6b            ; CB2 independent interrupt, input positive edge,
+    sta VIA2_PCR        ; CA2 pulse output mode, CA1 positive active edge, p391.
     lda #$00
     sta $f0
     jsr _82d4
