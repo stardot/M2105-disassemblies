@@ -1,0 +1,16 @@
+.alias OSRDRM $ffb9
+.alias OSASCI $ffe3
+.alias OSNEWL $ffe7
+.alias OSWRCH $ffee
+.alias OSWORD $fff1
+.alias OSBYTE $fff4
+.alias OSCLI  $fff7
+
+; Vectors for event, insert into buffer, remove from buffer.
+.alias BRKV  $0202
+.alias EVNTV $0220
+.alias INSV  $022a
+.alias REMV  $022c
+
+.alias PAGING_JIM $fcff
+.alias PAGING_SHEILA $fe05

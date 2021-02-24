@@ -1,0 +1,27 @@
+; ACR   auxiliary control register
+; DDR   data direction register
+; IER   interrupt enable register
+; IFR   interrupt flag register
+; PCR   peripheral control register
+; T2CL  T2 low-order latch/counter
+; T2CH  T2 high-order counter
+
+; VIA1 is used to communicate with the speech system.
+.alias VIA1_RB $fc60
+.alias VIA1_RA $fc61
+.alias VIA1_DDRB $fc62
+.alias VIA1_DDRA $fc63
+.alias VIA1_PCR $fc6c
+.alias VIA1_IFR $fc6d
+.alias VIA1_IER $fc6e
+
+.alias VIA2_RB $fc70
+.alias VIA2_RA $fc71
+.alias VIA2_DDRB $fc72
+.alias VIA2_DDRA $fc73
+.alias VIA2_T2CL $fc78
+.alias VIA2_T2CH $fc79
+.alias VIA2_ACR $fc7b
+.alias VIA2_PCR $fc7c
+.alias VIA2_IFR $fc7d
+.alias VIA2_IER $fc7e

@@ -1,0 +1,46 @@
+; ACR   aux. control register
+; CC    counter command
+; CRA   command register A
+; CRB   command register B
+; CSRB  clock select register A
+; CSRB  clock select register B
+; CTL   counter/timer lower value
+; CTU   counter/timer lower value
+; HRA   Rx holding register A (RHRA) or Tx holding register A (THRA)
+; HRB   Rx holding register B (RHRB) or Tx holding register B (THRB)
+; IP    input ports IP0 to IP6
+; IPCR  input port change register
+; ISR   interrupt status register
+; MRA   mode register A
+; MRB   mode register B
+; SRA   status register A
+; SRB   status register B
+
+.alias DUART_MRA $fc50
+.alias DUART_MR1A $fc50
+.alias DUART_MR2A $fc50
+.alias DUART_SRA $fc51
+.alias DUART_CSRA $fc51
+.alias DUART_CRA $fc52
+.alias DUART_HRA $fc53
+.alias DUART_RHRA $fc53
+.alias DUART_THRA $fc53
+.alias DUART_IPCR $fc54
+.alias DUART_ACR $fc54
+.alias DUART_ISR $fc55
+.alias DUART_CTU $fc56
+.alias DUART_CTL $fc57
+.alias DUART_MRB $fc58
+.alias DUART_SRB $fc59
+.alias DUART_CSRB $fc59
+.alias DUART_CRB $fc5a
+.alias DUART_HRB $fc5b
+.alias DUART_RHRB $fc5b
+.alias DUART_THRB $fc5b
+.alias DUART_IP  $fc5d
+.alias DUART_START_CC $fc5e
+.alias DUART_STOP_CC $fc5f
+
+.alias RAM_DUART_ISR $3f02
+.alias RAM_DUART_ACR $3f03
+.alias RAM_DUART_SRA $3f04

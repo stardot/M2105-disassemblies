@@ -6,16 +6,7 @@
 ; NAUG is the New Advanced User Guide (https://stardot.org.uk/forums/viewtopic.php?f=42&t=17243&p=268991)
 ; SCN2681 is the Philips Semiconductors SCN2681 datasheet
 
-.alias OSASCI $ffe3
-.alias OSNEWL $ffe7
-.alias OSWORD $fff1
-.alias OSBYTE $fff4
-.alias OSCLI  $fff7
-
-; Vectors for event, insert into buffer, remove from buffer.
-.alias EVNTV $0220
-.alias INSV  $022a
-.alias REMV  $022c
+.include "MOS.oph"
 
 ; Note: Uses these addresses in pages &FC and &FD:
 ;
@@ -40,84 +31,12 @@
 ; Some tips on using a VIA:
 ; https://stardot.org.uk/forums/viewtopic.php?f=3&t=14745&start=30#p197661
 
-; ACR   aux. control register
-; CC    counter command
-; CRA   command register A
-; CRB   command register B
-; CSRB  clock select register A
-; CSRB  clock select register B
-; CTL   counter/timer lower value
-; CTU   counter/timer lower value
-; HRA   Rx holding register A (RHRA) or Tx holding register A (THRA)
-; HRB   Rx holding register B (RHRB) or Tx holding register B (THRB)
-; IP    input ports IP0 to IP6
-; IPCR  input port change register
-; ISR   interrupt status register
-; MRA   mode register A
-; MRB   mode register B
-; SRA   status register A
-; SRB   status register B
-
-.alias DUART_MRA $fc50
-.alias DUART_MR1A $fc50
-.alias DUART_MR2A $fc50
-.alias DUART_SRA $fc51
-.alias DUART_CSRA $fc51
-.alias DUART_CRA $fc52
-.alias DUART_HRA $fc53
-.alias DUART_RHRA $fc53
-.alias DUART_THRA $fc53
-.alias DUART_IPCR $fc54
-.alias DUART_ACR $fc54
-.alias DUART_ISR $fc55
-.alias DUART_CTU $fc56
-.alias DUART_CTL $fc57
-.alias DUART_MRB $fc58
-.alias DUART_SRB $fc59
-.alias DUART_CSRB $fc59
-.alias DUART_CRB $fc5a
-.alias DUART_HRB $fc5b
-.alias DUART_RHRB $fc5b
-.alias DUART_THRB $fc5b
-.alias DUART_IP  $fc5d
-.alias DUART_START_CC $fc5e
-.alias DUART_STOP_CC $fc5f
-
-.alias RAM_DUART_ISR $3f02
-.alias RAM_DUART_ACR $3f03
-.alias RAM_DUART_SRA $3f04
-
-; ACR   auxiliary control register
-; DDR   data direction register
-; IER   interrupt enable register
-; IFR   interrupt flag register
-; PCR   peripheral control register
-; T2CL  T2 low-order latch/counter
-; T2CH  T2 high-order counter
-
-; VIA1 is used to communicate with the speech system.
-.alias VIA1_RB $fc60
-.alias VIA1_RA $fc61
-.alias VIA1_DDRB $fc62
-.alias VIA1_DDRA $fc63
-.alias VIA1_PCR $fc6c
-.alias VIA1_IFR $fc6d
-.alias VIA1_IER $fc6e
-
-.alias VIA2_RB $fc70
-.alias VIA2_RA $fc71
-.alias VIA2_DDRB $fc72
-.alias VIA2_DDRA $fc73
-.alias VIA2_T2CL $fc78
-.alias VIA2_T2CH $fc79
-.alias VIA2_ACR $fc7b
-.alias VIA2_PCR $fc7c
-.alias VIA2_IFR $fc7d
-.alias VIA2_IER $fc7e
+.include "SCN2681.oph"
+.include "6522.oph"
 
 .org $8000
 
-ic24_start:
+ic24_sk1_start:
 
 start:
 language_entry:     .byte 0, 0, 0
@@ -375,29 +294,29 @@ _8177:
 service_08_exit:
     pla
     rts
-_8181:
+_8181:              ; OSWORD &81
     tya
     pha
-    ldy #$00
-    lda ($f0),y
+    ldy #$00        ; Read from the block of memory whose address was passed as
+    lda ($f0),y     ; YYXX to the OSWORD call.
     sec
     sbc #$05
     sta $3f12
     beq _819c
     ldy #$05
-    lda ($f0),y
+    lda ($f0),y     ; Read a byte from (YYXX+5) passed to OSWORD.
     sta $3f13
     iny
-    lda ($f0),y
+    lda ($f0),y     ; Read a byte from (YYXX+6) passed to OSWORD.
     sta $3f14
 _819c:
     ldy #$00
     sty $3f15
     iny
     lda #$05
-    sta ($f0),y
+    sta ($f0),y     ; Read a byte from (YYXX+5) passed to OSWORD.
     iny
-    lda ($f0),y
+    lda ($f0),y     ; Read a byte from (YYXX+6) passed to OSWORD.
     bmi _81af
     cmp #$37
     bcc _81b5
@@ -681,7 +600,7 @@ _82d4:
     ldx $ee         ; 1MHz bus page number (EAUG, p188)
     lda $f0         ; X value passed to OSBYTE
     stx $f0         ; Store the page number in $f0 to return it from OSBYTE in X.
-    sta $fcff       ; Select page given by OSBYTE X argument.
+    sta PAGING_JIM       ; Select page given by OSBYTE X argument.
     sta $ee         ; 1MHz bus page number (EAUG, p188)
     clc
     rts
@@ -1138,13 +1057,13 @@ _8563:
     cmp #$04
     beq _8587
     lda DUART_MRB
-    and #$bf
+    and #$bf            ; Select RxRDY for RxINT select.
     jsr duart_reset_mrb
     sta DUART_MRB
     jmp _8592
 _8587:
     lda DUART_MRB
-    ora #$40
+    ora #$40            ; Select FFULL for RxINT select.
     jsr duart_reset_mrb
     sta DUART_MRB
 _8592:
@@ -1169,7 +1088,7 @@ _85a7:
     sta $80
 _85bc:
     lda RAM_DUART_ISR
-    ora $80
+    ora $80             ; Enable port change interrupt.
     sta DUART_ISR
     sta RAM_DUART_ISR
     rts
@@ -1527,7 +1446,7 @@ _8852:
     rts
 
 osword_81_26:
-    lda $fcff
+    lda PAGING_JIM
     sta $3f16
     inc $3f15
     rts
@@ -4178,7 +4097,7 @@ _9d26:
 _9d2b:
     lda #$80
 _9d2d:
-    sta $fcff
+    sta PAGING_JIM
     rts
 
 _9d31:
@@ -4694,7 +4613,7 @@ _a0d8:
     lda $37d3
     beq _a0f3
     lda #$0c        ; Clear screen.
-    jsr $ffee
+    jsr OSWRCH
     lda #$7d
     sta $2d
     ldx #$01
@@ -4858,7 +4777,7 @@ _a20b:
 
 _a215:
     lda #$0c        ; Clear screen.
-    jsr $ffee
+    jsr OSWRCH
     ldx #$23
     stx $2d
     ldx #$01
@@ -4909,7 +4828,7 @@ _a26b:
     sta $0403
 _a275:
     lda $0403
-    sta $fcff
+    sta PAGING_JIM
     cmp #$81
     bcc _a288
     jsr _a28b
@@ -4944,7 +4863,7 @@ _a2ab:
     ldx #$29
     jsr $3300
     ldx #$80
-    stx $fcff
+    stx PAGING_JIM
     rts
 
 _a2b8:
