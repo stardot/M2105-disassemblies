@@ -374,7 +374,7 @@ $834f  38        sec
 $8350  ed 0c 07  sbc $070c
 $8353  0a        asl a
 $8354  aa        tax
-$8355  bd 80 83  lda _8380,x
+$8355  bd 80 83  lda _8380,x    ; See lookup table below.
 $8358  85 2a     sta $2a
 $835a  bd 81 83  lda _8381,x
 $835d  85 2b     sta $2b
@@ -659,7 +659,7 @@ $85e0  60        rts
 
 _85e1:                   ; 85e1
        a9 00     lda #$00
-$85e3  a2 1f     ldx #$1f
+$85e3  a2 1f     ldx #$1f           ; Write 0 to $6fa-$719
 _85e5: 9d fa 06  sta $06fa,x
 $85e8  ca        dex
 $85e9  10 fa     bpl _85e5
@@ -757,6 +757,7 @@ $8791  a8        tay
 $8792  68        pla
 _8793: aa        tax
 $8794  4c 77 89  jmp _8977
+
 _8797: 20 b6 87  jsr _87b6
 $879a  ac 80 0c  ldy $0c80
 $879d  88        dey
@@ -772,6 +773,7 @@ $87ad  8d 1a 07  sta $071a
 $87b0  a9 01     lda #$01
 $87b2  8d 1b 07  sta $071b
 $87b5  60        rts
+
 _87b6: 20 a7 87  jsr _87a7
 $87b9  a0 01     ldy #$01
 $87bb  8c 80 0c  sty $0c80
@@ -3056,6 +3058,11 @@ $9dea  89        ???
 _9deb: 9e        ???
 $9dec  a2 a2     ldx #$a2
 $9dee  a6 a6     ldx $a6
+
+; This routine is called from RAM. Its entry point is the address defined by
+; the high byte at bf01 and the low byte at bf80, plus one. The offset is due
+; to the use of an RTS instruction to enter the routine.
+entry_from_ram:
 $9df0  a2 00     ldx #$00
 $9df2  4c 06 9e  jmp _9e06
 $9df5  a2 01     ldx #$01
@@ -3093,6 +3100,7 @@ $9e41  48        pha
 $9e42  a5 5b     lda $5b
 $9e44  a4 5c     ldy $5c
 $9e46  60        rts
+
 _9e47: a5 5b     lda $5b
 $9e49  8d 77 3c  sta $3c77
 $9e4c  a5 5c     lda $5c
@@ -3162,6 +3170,7 @@ $9ed6  ad 63 3b  lda $3b63
 $9ed9  d0 03     bne _9ede
 $9edb  20 93 9f  jsr _9f93
 _9ede: 4c 01 ab  jmp _ab01
+
 _9ee1: 20 75 a0  jsr _a075
 $9ee4  ad 63 3b  lda $3b63
 $9ee7  d0 03     bne _9eec

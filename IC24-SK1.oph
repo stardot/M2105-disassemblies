@@ -92,15 +92,15 @@ _804f: .byte $80    ; This
 .byte <[service_12 - 1],>[service_12 - 1]
 
 _8074:
-    rts
+    rts     ; Service 0
 _8075:
-    rts
+    rts     ; Service 1
 _8076:
-    rts
+    rts     ; Service 2
 _8077:
-    rts
+    rts     ; Service 3
 _8078:
-    rts
+    rts     ; Service 4
 
 ; Service call &05 (unknown interrupt) handler (EAUG, p156)
 
@@ -600,7 +600,7 @@ _82d4:
     ldx $ee         ; 1MHz bus page number (EAUG, p188)
     lda $f0         ; X value passed to OSBYTE
     stx $f0         ; Store the page number in $f0 to return it from OSBYTE in X.
-    sta PAGING_JIM       ; Select page given by OSBYTE X argument.
+    sta PAGING_JIM  ; Select page given by OSBYTE X argument.
     sta $ee         ; 1MHz bus page number (EAUG, p188)
     clc
     rts
@@ -1745,23 +1745,23 @@ _8a75:
 _8a78:
     php
     sei
-    pha
+    pha             ; Preserve A
     ldy #$01
-    lda ($f0),y
-    cmp #$ff
-    bne _8aca
-    pla
+    lda ($f0),y     ; Load high byte of channel number
+    cmp #$ff        ; Check for certain negative channel numbers
+    bne _8aca       ; Exit if not found
+    pla             ; Discard stacked A
     iny
     lda ($f0),y
-    tax
-    pha
+    tax             ; X=low byte of volume
+    pha             ; Push byte
     iny
     lda ($f0),y
-    pha
+    pha             ; Push high byte of volume
     ldy #$00
-    lda ($f0),y
-    cmp #$f0
-    bcc _8ab5
+    lda ($f0),y     ; Load low byte of channel
+    cmp #$f0        ; Check for negative numbers below -16
+    bcc _8ab5       ; and treat them differently
     pla
     pha
     cmp $3f31
@@ -1769,7 +1769,7 @@ _8a78:
     bcc _8aa7
     bcs _8acd
 _8aa0:
-    cpx $3f30
+    cpx $3f30       ; Check low byte of volume
     beq _8aa7
     bcs _8acd
 _8aa7:
@@ -1782,11 +1782,11 @@ _8ab0:
     bcc _8acd
 _8ab5:
     lda ($f0),y
-    jsr _8ce5
+    jsr insert_value_speech_buffer
     pla
-    jsr _8ce5
+    jsr insert_value_speech_buffer
     pla
-    jsr _8ce5
+    jsr insert_value_speech_buffer
     jsr _8b97
     plp
     clc
@@ -1903,7 +1903,7 @@ _8b97:
     ldx #$08
     stx $3f29
 _8b9c:
-    jsr _8cdd
+    jsr examine_value_speech_buffer
     bcs _8bf9
     tay
     beq _8bab
@@ -1911,11 +1911,11 @@ _8b9c:
     eor #$00
     bmi _8bf9
 _8bab:
-    jsr _8cd7
+    jsr remove_value_speech_buffer
     sta $3f2a
-    jsr _8cd7
+    jsr remove_value_speech_buffer
     sta $3f2c
-    jsr _8cd7
+    jsr remove_value_speech_buffer
     sta $3f2b
     lda $3f2a
     beq _8be8
@@ -2007,7 +2007,7 @@ _8c33:
     lda #$04
 _8c4c:
     dey
-    beq _8c2d
+    beq _8c2d       ; Return via common clean-up routine (above)
     bit VIA1_RB
     bne _8c4c
     pla
@@ -2099,17 +2099,18 @@ _8cc1:
     pla
     sta $f0
     rts
-_8cd7:
+remove_value_speech_buffer:
     ldx #$08
     clv
     jmp (REMV)
-_8cdd:
+examine_value_speech_buffer:
     ldx #$08
     bit _8a74
     jmp (REMV)
-_8ce5:
-    ldx #$08
-    jmp (INSV)
+insert_value_speech_buffer: ; 8ce5
+    ldx #$08        ; Speech buffer
+    jmp (INSV)      ; Insert value into buffer vector (EAUG, p128)
+                    ; A=value, X=buffer
 
 duart_reset_mra:
 _8cea:
@@ -8763,7 +8764,9 @@ _bef3:
     lda #$23
 
 _bf00:
-.byte $04,$8d,$a0,$9c,$9b,$9d,$9d,$9c,$94,$97,$8e,$90,$91,$91,$91,$91
+.byte $04
+_bf01:
+.byte $8d,$a0,$9c,$9b,$9d,$9d,$9c,$94,$97,$8e,$90,$91,$91,$91,$91
 .byte $94,$95,$96,$9a,$98,$92,$a2,$a3,$a3,$03
 
 _bf1a:
@@ -8818,6 +8821,7 @@ _bf5b:
 
 _bf7f:
 .byte $8d
+_bf80:
 .byte $ff,$d7,$bb,$4d,$8a,$95,$7d,$47,$d8,$00,$d6,$53,$bb,$6a,$9d,$ba
 .byte $c0,$19,$5c,$93,$a7,$60
 

@@ -109,13 +109,13 @@ _808c:
 
 _808d:
     lda #$33
-    jsr _8778
-    lda #$63       ; "c"
+    jsr setup       ; 8778
+    lda #$63        ; "c"
     jsr OSWRCH
-    jsr _82ff
-    jsr _83c4
-    jsr $3389
-    lda #$0d
+    jsr _82ff       ; Copy code into RAM.
+    jsr _83c4       ; Find which banks the ROMs are in.
+    jsr [$3300 + _3389 - ram_code]
+    lda #$0d        ; Carriage return
     jsr OSASCI
     ldx #$ff
     stx $0580
@@ -128,7 +128,7 @@ _808d:
     lda #$06
     sta $3605
     lda #$25
-    jsr $3354
+    jsr _3354
     lda $340e
     sta $37d3
     lda #$42       ; OSBYTE &42 - see IC24-SK1
@@ -222,7 +222,8 @@ _8169:
 _816a:
     rts
 
-_816b:
+test_ram:
+_816b:             ; RAM entry point 41
     jsr _8196
     lda #$aa
     sta $20
@@ -247,8 +248,8 @@ _8196:
     jsr _8219
 _8199:
     ldy #$00
-    lda $24
-    sta ($1e),y
+    lda $24             ; Has a value of $33 at boot up.
+    sta ($1e),y         ; Writes to $3300 during boot up.
     jsr _81d4
     bcc _8199
     lda $2e
@@ -270,22 +271,24 @@ _81be:
     bcc _81b3
     rts
 
+; This looks like a RAM selection routine that automatically pages RAM mapped
+; in page FD depending on the value in $24.
 _81c4:
-    lda $1f
+    lda $1f         ; Check high address byte $1f is 0-$7f (DRAM).
     bpl _81cf
-    ldx $24
-    lda #$41       ; OSBYTE &41 - see IC24-SK1
+    ldx $24         ; Page number for JIM memory region.
+    lda #$41        ; OSBYTE &41 - see IC24-SK1
     jmp OSBYTE
 _81cf:
     lda $24
-    sta $1f
+    sta $1f         ; Set the high address byte in $1e,$1f.
     rts
 
 _81d4:
     lda $24
     cmp $2c
-    beq _81e0
-    dec $24
+    beq _81e0       ; if ($24) == ($2c) then return
+    dec $24         ; else decrement ($24)
     jsr _81c4
     clc
 _81e0:
@@ -295,6 +298,8 @@ _81e1:
     jsr _8219
 _81e4:
     ldy #$00
+                    ; At boot up, $20 contains $aa, $22 contains $55, and
+                    ; $1e,$1f refers to $3000...$3f00 at different points.
 _81e6:
     lda $20
     sta ($1e),y
@@ -303,6 +308,7 @@ _81e6:
     sta ($1e),y
     iny
     bne _81e6
+                    ; When all 256 bytes have been written to $3000, $3100, $3200.
     jsr _81d4
     bcc _81e4
     rts
@@ -330,11 +336,11 @@ _8210:
     rts
 
 _8219:
-    lda $2d
+    lda $2d     ; $2d -> $1f
     sta $1f
     lda #$00
-    sta $1e
-    lda $2e
+    sta $1e     ; 0 -> $1e
+    lda $2e     ; $2e -> $24
     sta $24
     jmp _81c4
 _8228:
@@ -342,37 +348,51 @@ _8228:
 _8229:
     .byte $12
     brk
+
+ram_code:               ; This code is copied into RAM at $3300 at boot up.
+_3300:                  ; 822b
     sta $2c
     lda rom_id
     pha
-    lda $0516
-    sta rom_id
+    lda $0516           ; Load the ROM bank containing IC22 (ROM 1).
+    sta rom_id          ; Page in IC22.
     sta PAGING_SHEILA
-    jsr _839b
-    bmi _8247
+    jsr _839b           ; An address in ROM, not RAM.
+    bmi _331c
     sta rom_id
     sta PAGING_SHEILA
     ldy $2e
-    jsr $3327
-_8247:
-    pla
-    sta rom_id
+    jsr [$3300 + _3327 - ram_code]
+_331c:                  ; 8247
+    pla                 ; Recover the previous ROM bank
+    sta rom_id          ; and page in the ROM.
     sta PAGING_SHEILA
-    ldx $2d
+    ldx $2d             ; Recover register values.
     lda $2c
+_3326:                  ; RAM entry point 43 (referring to 3326)
     rts
-    lda _bf01,x
-    pha
-    lda _bf80,x
+
+_3327:                  ; 3327 when in RAM
+    lda _bf01,x         ; Load the high byte of an entry address (minus one)
+    pha                 ; from the ROM and push it onto the stack.
+    lda _bf80,x         ; Do the same for the low byte.
     pha
     lda $2c
     ldx $2d
-    rts
+    rts                 ; Return to the entry address on the stack.
+
+; Entry addresses (minus one) are:
+;        IC22 (1)   IC24-SK2 (2)    IC23 (3)    IC24-SK1 (4)
+; v2.07  a6ff       7fff            9001        a99e
+; v3.4   a5ef       9fe5            8001        8dff
+; v3.5   a60c       9def            8001        8dff
+
+                        ; 825f (3334 when in RAM)
     lda DUART_SRA
     ror
-    bcs _8268
+    bcs +
     jmp ($3440)
-_8268:
+*                       ; 8268 (333d)
     txa
     pha
     lda rom_id
@@ -386,6 +406,8 @@ _8268:
     tax
     lda $fc
     rti
+
+_3354:
     sta $340d
     stx $3410
     sty $3411
@@ -393,81 +415,93 @@ _8268:
     ldx #$0b        ; See IC24-SK1 osword_81_0b.
     ldy #$34        ; $340b
     jmp OSWORD
+
+build_rom_array:    ; Finds the ROMs by looking for paging in each one and 
+                    ; looking for IDs at 0xbf00. Only for banks 0-3 and 12-15.
+                    ; Compiles an array at $515, storing the ROM bank using the
+                    ; ID as an index.
+                    ; IDs are 1 (IC22), 2 (IC24-SK2), 3 (IC23), 4 (IC24-SK1).
+
+_3366:              ; 3366 in RAM
     lda rom_id
-    pha
+    pha             ; Save the current ROM ID.
     ldy #$0f
-_8296:
+_336b:              ; 8296
     sty rom_id
     sty PAGING_SHEILA
     ldx _bf00
-    beq _82a8
+    beq _337d
     cpx #$09
-    bcs _82a8
-    tya
+    bcs _337d
+    tya             ; Store the ROM bank in the array using the ID as an index.
     sta $0515,x
-_82a8:
-    cpy #$0c
-    bne _82ae
-    ldy #$04
-_82ae:
+_337d:              ; 82a8
+    cpy #$0c        ; Check for ROM 12
+    bne _3383       ; If not ROM 12, keep checking until ROM 12 is encountered
+    ldy #$04        ; Continue checking from ROM 4 (3 after decrementing)
+_3383:              ; 82ae
     dey
     bpl _8296
-    jmp $331c
+    jmp [$3300 + _331c - ram_code]
+
+_3389:
     lda rom_id
     pha
     ldy #$01
-_82b9:
-    ldx #$08
-_82bb:
-    lda $0515,x
-    bmi _82f6
+_338e:                  ; 82b9
+    ldx #$08            ; Read the 8 array elements.
+_3390:                  ; 82bb
+    lda $0515,x         ; Read a bank number from the array.
+    bmi _33cb           ; Branch if uninitialised ($ff)
     sta rom_id
-    sta PAGING_SHEILA
+    sta PAGING_SHEILA   ; Page in the ROM.
     cmp #$0a
     sed
     adc #$30
     cld
-    jsr OSWRCH
-    lda #$bf
-    sta $33ad
+    jsr OSWRCH      ; Print the bank number of the ROM.
+    lda #$bf        ; Writes $bf to the high byte of the address used in the 
+    sta $33ad       ; instruction below (at 82d6 in ROM and 33ab in RAM).
     lda #$00
-_82d5:
+_33aa:              ; 82d5
     clc
-    adc _bf00
-    inc $33ac
-    bne _82d5
-    dec $33ad
-    bmi _82d5
-    cmp #$00
-    beq _82f6
-    lda #$00
+    adc _bf00       ; This address is modified in RAM by these instructions:
+    inc $33ac       ; Modifies the low byte to check upwards in the page.
+    bne _33aa
+    dec $33ad       ; Modifies the high byte to check downwards to page 7f.
+    bmi _33aa
+    cmp #$00        ; Check the sum is zero
+    beq _33cb       ; and continue checking ROMs if it is.
+    lda #$00        ; Otherwise clear the entry in the array.
     sta $0515,x
-    lda #$3f       ; "?"
+    lda #$3f        ; "?"
     jsr OSWRCH
-    lda #$07       ; Beep
+    lda #$07        ; Bell
     jsr OSWRCH
-_82f6:
+_33cb:              ; 82f6
     dex
-    bne _82bb
+    bne _3390       ; Check the next array element.
     dey
-    beq _82b9
-    jmp $331c
+    beq _338e       ; Check the array twice.
+    jmp [$3300 + _331c - ram_code]
+; End of RAM code
+
 _82ff:
     ldx #$d4
     lda #$00
     sta $2e
-    lda #$00
+    lda #$00        ; $20,$21 = $3300
     sta $20
     lda #$33
     sta $21
-    lda #$2b
+    lda #$2b        ; $1e,$1f = $822b
     sta $1e
     lda #$82
     sta $1f
     ldy #$00
 _8317:
-    lda ($1e),y
-    sta ($20),y
+    lda ($1e),y     ; $1e,$1f contains $822b during boot up.
+    sta ($20),y     ; $20,$21 contains $3300 during boot up.
     iny
     bne _8322
     inc $1f
@@ -478,6 +512,8 @@ _8322:
     dec $2e
     bpl _8317
     rts
+
+_832a:             ; RAM entry point 42
     ldx <BASIC_command
     ldy >BASIC_command
     jmp OSCLI
@@ -538,6 +574,7 @@ _8378:
 _839a:
     rts
 
+; Called from the RAM code:
 _839b:
     php
     cpx #$c1
@@ -547,7 +584,7 @@ _839b:
     brk
 _83a3:
     txa
-    stx $0512
+    stx $0512   ; Store X in $512
     tsx
     stx $0513
     sty $2e
@@ -564,14 +601,17 @@ _83b0:
 _83bc:
 .byte $47,$4c,$16,$18,$00,$00,$00,$00
 
+find_roms:
 _83c4:
-    ldx #$08
-    lda #$ff
-_83c8:
+    ldx #$08        ; Writes 8 bytes
+    lda #$ff        ; of $ff to $516-$51d
+*
     sta $0515,x
     dex
-    bne _83c8
-    jmp $3366
+    bne -
+    jmp [$3300 + _3366 - ram_code]
+
+_83d1:             ; RAM entry point 29
     php
     sei
     stx $0514
@@ -600,19 +640,27 @@ _83f0:
     plp
     rts
 
-_83fe:
-.byte $e0,$05,$90,$03,$00,$03,$00
+_83fe:             ; RAM entry point 30
+    cpx #$05
+    bcc _8405
+    brk
+
+.byte $03,$00
 
 _8405:
     lda #$00
     sta $055a,x
     rts
+
+_840b:             ; RAM entry point 31
     ldx $3412
     lda #$ff
     jsr _8533
     jmp _8419
+
+_8416:             ; RAM entry point 33
     jsr _8526
-_8419:
+_8419:             ; RAM entry point 32
     jsr _852b
     txa
     ldx $0514
@@ -641,15 +689,18 @@ _842f:
     sta $052a,y
     jsr _814a
     jmp _8540
-_8445:
+_8445:             ; RAM entry point 35
     pha
     jsr _8526
     pla
+_844a:             ; RAM entry point 34
     jsr _8496
     ldy #$03
     lda ($18),y
     tax
     jmp _8419
+
+_8455:             ; RAM entry point 40
     jsr _852b
     tax
     tya
@@ -665,9 +716,9 @@ _8445:
     lda $0106,x
     pha
 _846b:
-    lda #$33
+    lda #>[_331c - 1]   ; $33
     pha
-    lda #$1b
+    lda #<[_331c - 1]   ; $1b
     pha
     tsx
     stx $0583
@@ -685,7 +736,7 @@ _846b:
     sta $0580
     jsr _8629
     jmp _814a
-_8496:
+_8496:             ; RAM entry point 36
     sta $18
     sty $19
     ldy #$03
@@ -738,7 +789,7 @@ _84da:
     sta ($1c),y
     rts
 
-_84ef:
+_84ef:             ; RAM entry point 37
     sta $18
     sty $19
 _84f3:
@@ -774,7 +825,7 @@ _851a:
     sta ($1c),y
 _8525:
     rts
-_8526:
+_8526:             ; RAM entry point 38
     lda #$00
     sta $053a,x
 _852b:
@@ -786,7 +837,7 @@ _8530:
 _8532:
     rts
 
-_8533:
+_8533:             ; RAM entry point 39
     php
     sei
     jsr _852b
@@ -910,9 +961,9 @@ _8600:
 _860d:
     lda rom_id
     pha
-    lda #$33
+    lda #[>_331c - 1]   ; $33
     pha
-    lda #$1b
+    lda #[<_331c - 1]   ; $1b
     pha
     lda $055a,x
     pha
@@ -920,9 +971,9 @@ _860d:
     pha
     lda $056a,x
     pha
-    lda #$33
+    lda #[>_331c - 1]   ; $33
     pha
-    lda #$1b
+    lda #[<_331c - 1]   ; $1b
     pha
     rts
 
@@ -1031,10 +1082,10 @@ _86d4:
     jsr _8719
     lda #$fd        ; Read hard/soft BREAK (EAUG, p86).
     ldx #$00
-    ldy #$ff
-    jsr OSBYTE
+    ldy #$ff        ; Get the existing value without changing it.
+    jsr OSBYTE      ; X=0 (soft), 1 (reset), 2 (hard)
     txa
-    bne _8700
+    bne _8700       ; not a soft BREAK?
     lda $0907
     beq _86fa
     ldx #$2a
@@ -1113,10 +1164,10 @@ _8763:
 _8771:
 .byte $d5,$d4,$a3,$a2,$c2,$c1,$a2
 
-_8778:
-    sta $2d
+setup:              ; 8778
+    sta $2d         ; Store A in both $2c and $2d.
     sta $2c
-    lda #$73       ; "s"
+    lda #$73        ; "s"
     jsr OSWRCH
     lda #$3f
     sta $2e
@@ -1154,6 +1205,8 @@ _879f:
     jsr _8bfd
     ldx #$07
     jmp _910f
+
+_87c3:             ; RAM entry point 46
     eor $3417
     clc
     adc $fd63
@@ -1164,6 +1217,8 @@ _879f:
     lda _8c28,x
     sta $3416
     rts
+
+_87db:             ; RAM entry point 44
     lda $3421
     bne _87f4
     php
@@ -1689,7 +1744,7 @@ _8b7a:
 
 _8b87:
     lda #$12
-    jsr $3354
+    jsr [$3300 + _3354 - _3300]
     lda #$f4
     ldy #$87
     ldx #$03
@@ -1701,10 +1756,10 @@ _8b87:
 _8b9d:
     lda #$1f
     ldx #$00
-    jsr $3354
+    jsr [$3300 + _3354 - _3300]
     lda #$20
     ldx #$1c
-    jmp $3354
+    jmp [$3300 + _3354 - _3300]
 
 _8bab:
     jsr _8bd5
@@ -1754,7 +1809,7 @@ _8bea:
 _8bef:
     lda #$1b
     ldx #$02
-    jmp $3354
+    jmp [$3300 + _3354 - _3300]
 
 _8bf6:
     lda #$1c
@@ -1772,7 +1827,7 @@ _8c08:
     lda #$81       ; OSWORD &81 - see IC24-SK1.
     jmp OSWORD
 
-_8c11:
+_8c11:             ; RAM entry point 45
     pha
     eor $341d
     tax
@@ -1864,6 +1919,8 @@ _8e7f:
     lda #$01
     ldx #$01
     jmp _8533
+
+_8e86:             ; RAM entry point 47
     lda #$01
     sta $04df
     lda #$27
@@ -1874,6 +1931,8 @@ _8e7f:
     ldy #$8e
     ldx #$06
     jmp _90f1
+
+_8e9d:             ; RAM entry point 50
     cpx #$00
     bne _8ea7
     jsr _8ebb
@@ -2030,7 +2089,7 @@ _8fa1:
 _8fad:
     rts
 
-_8fae:
+_8fae:             ; RAM entry point 49
     php
     sei
     ldx $04df
@@ -2080,11 +2139,13 @@ _8ffd:
     lda #$ea
     ldy #$04
     rts
+
+_9011:             ; RAM entry points 51-54
     rts
 
 _9012:
     lda #$21
-    jmp $3354
+    jmp [$3300 + _3354 - _3300]
 
 _9017:
     lda #$22
@@ -2092,16 +2153,16 @@ _9017:
 
 _901c:
     lda #$23
-    jmp $3354
+    jmp [$3300 + _3354 - _3300]
 
 _9021:
     lda #$24
 _9023:
-    jsr $3354
+    jsr [$3300 + _3354 - _3300]
     lda $340e
     rts
 
-_902a:
+_902a:             ; RAM entry point 48
     lda #$32
     ldy #$90
     ldx #$03
@@ -2236,7 +2297,7 @@ _90fd: .byte $06
 _90fe:
     rts
 
-_90ff:
+_90ff:             ; RAM entry point 27
     lda $0501,x
     beq _910d
     lda _9117,x
@@ -2245,14 +2306,14 @@ _90ff:
 _910d:
     brk
 _910e: .byte $07
-_910f:
+_910f:             ; RAM entry point 28
     lda #$00
     sta $04f1,x
     jmp _90f8
 
 _9117: .byte $01,$02,$04,$08,$10,$20,$40,$80
 
-_911f:
+_911f:             ; RAM entry point 62
     lda $3612
     cmp #$7f
     bne _9129
@@ -2471,7 +2532,7 @@ _9293:
 _92a7:
     jmp _96ff
 
-_92aa:
+_92aa:             ; RAM entry point 63
     lda $3614
     and #$7f
     sta $3614
@@ -2519,6 +2580,8 @@ _92fb:
     dey
     bpl _92fb
     rts
+
+_9310:             ; RAM entry point 59
     lda #$04
     sta $3419
     jsr _92be
@@ -3056,13 +3119,15 @@ _96b3:
     stx $059b
     rts
 
-_96b7:
+_96b7:             ; RAM entry point 60
     lda $3614
     and #$7f
     tax
     lda _97ed,x
     tax
     jmp _970f
+
+_96c4:             ; RAM entry point 61
     lda $059b
     pha
     jsr _968d
@@ -3197,7 +3262,7 @@ _98a9:
 .byte $2a,$ac,$99,$a5,$98,$97,$ba,$b8,$b7,$b6,$b5,$92,$91,$46,$7f,$b4
 .byte $7e,$b2,$b3,$3e,$3e,$3e,$3e,$3e,$3e,$00
 
-_994a:
+_994a:             ; RAM entry point 58
     ldx #$00
     stx $2d
     lda #$8e       ; Enter language ROM (EAUG, p52).
@@ -3259,9 +3324,9 @@ _99c1:
     rts
 
 _99c2:
-    jsr $ffe0
+    jsr OSRDCH
     cmp #$c0
-    bcc _99cb
+    bcc _99cb       ; < 240?
     lda #$01
 _99cb:
     sta $3612
@@ -3643,7 +3708,7 @@ _9c8f:
 _9ca0:
     rts
 
-_9ca1:
+_9ca1:             ; RAM entry point 57
     sta $20
     sty $21
     ldy #$00
@@ -3985,12 +4050,12 @@ _9f0f:
     pla
     rts
 
-_9f1a:
+_9f1a:             ; RAM entry point 55
     pha
     lda #$00
     sta $3625
     pla
-_9f21:
+_9f21:             ; RAM entry point 56
     sta $22
     sty $23
     stx $05b3
@@ -4183,7 +4248,7 @@ _a120:
 _a121:
 .byte $20,$1d,$20,$1f,$20,$1f,$20,$20,$1f,$20,$1f,$20
 
-_a12d:
+_a12d:              ; RAM entry point 21
     lda $3419
     and #$18
     bne _a15c
@@ -4272,15 +4337,15 @@ _a1c4:
     lda $37ee
     beq _a1c4
 _a1df:
-    ldx #$00
+    ldx #$00        ; Set a soft BREAK.
     lda #$fd
     ldy #$00
     jsr OSBYTE
-    lda #$fc
+    lda #$fc        ; Read the current language ROM number.
     ldx #$00
     ldy #$ff
     jsr OSBYTE
-    lda #$8e
+    lda #$8e        ; Enter the language ROM.
     jmp OSBYTE
 _a1f6:
     stx $eb
@@ -4294,6 +4359,8 @@ _a200:
     iny
     bne _a200
     rts
+
+_a208:             ; RAM entry point 26
     lda _a23e,y
     pha
     lda _a222,y
@@ -4316,8 +4383,11 @@ _a223:
 _a23e:
 .byte $03
 .byte $03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03,$03
-.byte $03,$03,$03,$03,$03,$03,$02,$03,$01,$03,$01,$8e,$09,$35,$8c,$0a
-.byte $35
+.byte $03,$03,$03,$03,$03,$03,$02,$03,$01,$03,$01
+
+_a25b:              ; RAM entry point 13
+    stx $3509
+    sty $350a
 
 _a261:
     lda #$1f        ; VDU 31,x,y
@@ -4327,13 +4397,13 @@ _a261:
     tya
     jmp OSWRCH
 
-_a26e:
+_a26e:              ; RAM entry point 14
     clc
     adc #$08
     jsr OSWRCH
     jmp _a674
 
-_a277:
+_a277:              ; RAM entry point 15
     pha
     jsr _a79b
     pla
@@ -4341,7 +4411,7 @@ _a277:
     jsr _a7a4
     jmp _a674
 
-_a285:
+_a285:              ; RAM entry point 16
     stx $26
     sty $27
     jsr _a669
@@ -4373,7 +4443,7 @@ _a2b4:
     ldx $3571
     cpx #$01
     beq _a2c2
-    lda #$20
+    lda #$20        ; " "
 _a2c2:
     jsr OSWRCH
     lda $3573
@@ -4407,32 +4477,41 @@ _a2ed:
     bmi _a303
     cmp #$30
     bne _a2fe
-    lda #$20
+    lda #$20        ; " "
     jmp OSWRCH
 _a2fe:
     ldx #$ff
     stx $05ca
 _a303:
     jmp OSWRCH
+
+_a306:              ; RAM entry point 17
     stx $26
     sty $27
     jsr _a79b
     jsr _a7b6
     jmp _a7a4
+
+_a313:
     stx $26
     sty $27
     jmp _a28c
-    lda #$1e       ; Home - reset cursor to window origin.
-    jsr OSWRCH
-    jmp _a674
-    lda #$0c       ; Clear text area.
+
+_a31a:              ; RAM entry point 18
+    lda #$1e        ; Home - reset cursor to window origin.
     jsr OSWRCH
     jmp _a674
 
-_a32a:
-    ldx #$34
-    ldy #$a3
-    jsr _a703
+_a322:              ; RAM entry point 7
+    lda #$0c        ; Clear text area.
+    jsr OSWRCH
+    jmp _a674
+
+print_command_screen:
+_a32a:              ; RAM entry point 11
+    ldx #<_a334
+    ldy #>_a334
+    jsr _a703       ; Write text referred to by $YYXX.
     jmp _a7f7
 
 _a334:
@@ -4447,7 +4526,7 @@ _a37c:
 .byte $83,$05,$20,$7c,$83,$09," | MSN: 00"
 .byte $30,"| NQM:00  ", $82,$84
 
-_a3dd:
+_a3dd:              ; RAM entry point 10
     lda $3606
     bne _a3e7
     ldx #$00
@@ -4464,7 +4543,7 @@ _a3ee:
     dey
     bpl _a3ee
     bcs _a40c
-    lda #$09       ; Move cursor right.
+    lda #$09        ; Move cursor right.
     jsr OSWRCH
     jsr OSWRCH
     inc $e0ff
@@ -4478,15 +4557,15 @@ _a40c:
     jsr _a79b
     pla
     tax
-    lda #$20
+    lda #$20        ; " "
     jsr OSWRCH
     lda _a43d,x
     jsr OSWRCH
     lda _a456,x
     jsr OSWRCH
-    lda #$20
+    lda #$20        ; " "
     jsr OSWRCH
-    lda #$08       ; Move cursor left.
+    lda #$08        ; Move cursor left.
     jsr OSWRCH
     txa
     pha
@@ -4511,6 +4590,8 @@ _a46f:
 _a477:
     ldy #$01
     jmp _a261
+
+_a47c:              ; RAM entry point 8
     lda #$00
     sta $05c5
     stx $360f
@@ -4518,11 +4599,11 @@ _a484:
     ldy #$02
     jmp _a261
 
-_a489:
+_a489:              ; RAM entry point 9
     jsr OSWRCH
     jmp _a7d7
 
-_a48f:
+_a48f:              ; RAM entry point 4
     txa
     pha
     jsr _a7e2
@@ -4548,7 +4629,7 @@ _a4b4:
     lda _b0d3,x
     beq _a4c3
     tax
-    lda #$20
+    lda #$20        ; " "
 _a4bd:
     jsr OSWRCH
     dex
@@ -4556,10 +4637,10 @@ _a4bd:
 _a4c3:
     rts
 
-_a4c4:
+_a4c4:              ; RAM entry point 23
     lda #$ff
     sta $3606
-_a4c9:
+_a4c9:              ; RAM entry point 1
     txa
     pha
     lda #$00
@@ -4567,7 +4648,7 @@ _a4c9:
     pla
     jsr _a810
     sta $3623
-_a4d7:
+_a4d7:              ; RAM entry point 22
     jsr _a79b
     jsr _a7e2
     lda $3414
@@ -4588,7 +4669,7 @@ _a4f8:
     jsr _a805
     ldx #$80
     ldy #$0c
-    jsr _a703
+    jsr _a703       ; Write text at $0c80.
     lda $3414
     cmp #$00
     beq _a50d
@@ -4620,6 +4701,7 @@ _a541:
     ldy #$00
 _a543:
     dec $3606
+_a546:              ; RAM entry point 12
     jsr _a58c
     lda #$80
     ldy #$0c
@@ -4661,7 +4743,7 @@ _a57e:
     dex
     rts
 
-_a583:
+_a583:              ; RAM entry point 19
     jsr _a58c
     jsr _a555
     jmp _a4d7
@@ -4685,7 +4767,7 @@ _a5a2:
     sta $0c80,x
     rts
 
-_a5a8:
+_a5a8:              ; RAM entry point 3
     lda $3414
     cmp #$00
     beq _a5bb
@@ -4697,7 +4779,7 @@ _a5bb:
     jsr _a6ac
     jmp _a7f7
 
-_a5c1:
+_a5c1:              ; RAM entry point 2
     cpx #$05
     bne _a5d9
     ldy #$07
@@ -4715,20 +4797,32 @@ _a5c7:
     rts
 
 _a5d9:
-    ldy _a5e8,x
-    lda [_a5e5 - 1],x  ; $a5e4
+    ldy _a5e8,x         ; Load high and
+    lda [_a5e5 - 1],x   ; low bytes of parameter block address.
     tax
     lda #$07       ; SOUND
     jmp OSWORD
 
 _a5e5:
-.byte $ed,$f5,$fd
+.byte $ed,$f5,$fd       ; low bytes of parameter blocks...
 _a5e8:
-.byte $05,$a5,$a5,$a5,$a6,$01,$00,$f1
-.byte $ff,$4b,$00,$01,$00,$01,$00,$f1,$ff,$7d,$00,$02,$00,$01,$00,$f1
-.byte $ff,$af,$00,$04,$00,$01,$00,$f1,$ff,$e1,$00,$08,$00
+.byte $05               ; ...
+.byte $a5,$a5,$a5,$a6   ; high bytes of parameter blocks
 
-_a60d:
+_a5ed:
+.byte $01,$00,$f1,$ff,$4b,$00,$01,$00
+_a5f5:
+.byte $01,$00,$f1,$ff,$7d,$00,$02,$00
+_a5fd:
+.byte $01,$00,$f1,$ff,$af,$00,$04,$00
+_a605:
+.byte $01,$00,$f1,$ff,$e1,$00,$08,$00
+
+; This routine is called from RAM. Its entry point is the address defined by
+; the high byte at bf01 and the low byte at bf80, plus one. The offset is due
+; to the use of an RTS instruction to enter the routine.
+entry_from_ram:
+_a60d:              ; RAM entry point 0
     jsr _a6fd
     php
     lda $3419
@@ -4745,10 +4839,10 @@ _a60d:
     jsr OSWRCH
     lda #$03       ; VDU 3 -> MODE 3
     jsr OSWRCH
-    jsr _a749
+    jsr cursor_off
     jsr _a690
     jsr _a6ac
-    jsr _a32a
+    jsr print_command_screen
     jsr _a654
     plp
     beq _a651
@@ -4772,6 +4866,7 @@ _a669:
     stx $3509
     ldy $350a
     jmp _a25b
+
 _a674:
     lda #$86        ; Read text cursor position (POS and VPOS, EAUG, p50).
     jsr OSBYTE
@@ -4793,13 +4888,13 @@ _a68b:
 _a68c:
 .byte $81,$11,$00,$11       ; Reversing this gives 17,0,17,129.
 
-_a690:
+_a690:              ; RAM entry point 20
     jsr _a6bd
     ldy #$5d
     ldx $3571
     cpx #$01
     beq _a69e
-    ldy #$20
+    ldy #$20        ; " "
 _a69e:
     ldx #$00
 _a6a0:
@@ -4865,13 +4960,16 @@ _a6ee:
     jsr OSWRCH
     lda #$13       ; and y = 19
     jmp OSWRCH
+
+_a6fd:
     lda $3419
     and #$18
     rts
+
 _a703:
-    stx $26
+    stx $26         ; Store low and high address bytes for use below.
     sty $27
-    ldy #$ff
+    ldy #$ff        ; Start at 255 because the loop will pre-increment Y.
 _a709:
     ldx #$01
 _a70b:
@@ -4908,36 +5006,38 @@ _a739:
 _a740:
     lda #$14        ; Restore default logical colours.
     jmp OSWRCH
-    ldy #$01
-    bne _a74b
-cursor_off:
+_a745:              ; RAM entry point 6
+    ldy #$01        ; Cursor on
+    bne _cursor_on_or_off
+cursor_off:         ; RAM entry point 5
 _a749:
     ldy #$00
-_a74b:
-    lda #$17
+cursor_on_or_off:   ; a74b
+    lda #$17        ; 23
     jsr OSWRCH
-    lda #$01
+    lda #$01        ; 1
     jsr OSWRCH
-    tya
+    tya             ; 1 (on) or 0 (off)
     jsr OSWRCH
-    ldy #$07
+    ldy #$07        ; Write the required 0 bytes to the VDU system.
     lda #$00
-_a75d:
-    jsr OSWRCH
+*   jsr OSWRCH
     dey
-    bne _a75d
+    bne -
     rts
+
+_a764:             ; RAM entry point 24
     lda $3415
     bne _a76e
     lda $05cb
     beq _a793
 _a76e:
-    jsr _a794
+    jsr read_character_at_cursor
     pha
     jsr _a680
     pla
     bne _a780
-    jsr _a794
+    jsr read_character_at_cursor
     pha
     jsr _a740
     pla
@@ -4951,8 +5051,8 @@ _a780:
     sta $05cb
 _a793:
     rts
-_a794:
-    lda #$87
+read_character_at_cursor:   ; a794
+    lda #$87        ; Read character at cursor position.
     jsr OSBYTE
     txa
     rts
@@ -5036,7 +5136,8 @@ _a81a:
     lda #$84
     sta ($28),y
     rts
-_a82d:
+
+_a82d:             ; RAM entry point 25
     sta $05d0
     lda #$e6
     sta $26
@@ -5259,7 +5360,7 @@ _aeca:
     sta $0c83
     lda #$46
     sta $0c84
-    lda #$54
+    lda #$54        ; "T"
     jsr OSWRCH
     jsr _af75
     jsr _afc4
@@ -5267,7 +5368,7 @@ _aeca:
     sta $21
     lda $18
     sta $20
-    lda #$46
+    lda #$46        ; "F"
     jsr OSWRCH
     jsr _af75
     jsr _afc4
@@ -5506,7 +5607,7 @@ _b0d3:
 .byte $1e,$22,$07,$07,$1e,$20,$02,$02,$02,$02,$02,$05,$05,$03,$02,$02
 .byte $04,$02,$16,$42,$04,$04,$10
 
-_b0f7:
+_b0f7:             ; RAM entry point 64
 $b0f7  20 3f b3  jsr _b33f
 $b0fa  a0 01     ldy #$01
 $b0fc  b1 47     lda ($47),y
@@ -5557,7 +5658,9 @@ $b160  8d db 05  sta $05db
 $b163  a9 00     lda #$00
 $b165  8d ea 05  sta $05ea
 $b168  60        rts
-$b169  20 3f b3  jsr _b33f
+
+_b169:             ; RAM entry point 65
+       20 3f b3  jsr _b33f
 $b16c  a0 01     ldy #$01
 $b16e  b1 47     lda ($47),y
 $b170  8d d2 05  sta $05d2
@@ -5623,7 +5726,9 @@ _b1f1:
     lda #$bd
 $b1f3  8d db 05  sta $05db
 $b1f6  4c 8c b5  jmp _b58c
-$b1f9  20 3f b3  jsr _b33f
+
+_b1f9:             ; RAM entry point 66
+       20 3f b3  jsr _b33f
 $b1fc  a0 01     ldy #$01
 $b1fe  b1 47     lda ($47),y
 $b200  8d d2 05  sta $05d2
@@ -5672,7 +5777,8 @@ _b257:
     jsr _b473
 _b25a:
     jmp _b58c
-$b25d  20 3f b3  jsr _b33f
+_b25d:             ; RAM entry point 67
+       20 3f b3  jsr _b33f
 $b260  a9 02     lda #$02
 $b262  8d d3 05  sta $05d3
 $b265  20 c7 b4  jsr _b4c7
@@ -5713,7 +5819,9 @@ _b2b5:
 $b2b7  20 f2 b2  jsr _b2f2
 _b2ba:
     jmp _b58c
-$b2bd  20 3f b3  jsr _b33f
+
+_b2bd:             ; RAM entry point 68
+       20 3f b3  jsr _b33f
 $b2c0  a9 02     lda #$02
 $b2c2  8d d3 05  sta $05d3
 $b2c5  20 c7 b4  jsr _b4c7
@@ -6386,7 +6494,8 @@ _b7bd:
 $b7bf  4c c6 b3  jmp _b3c6
 _b7c2:
     rts
-$b7c3  ad 19 34  lda $3419
+_b7c3:             ; RAM entry point 70
+       ad 19 34  lda $3419
 $b7c6  29 20     and #$20
 $b7c8  d0 03     bne _b7cd
 $b7ca  20 9c b8  jsr _b89c
@@ -6399,7 +6508,9 @@ $b7d8  09 04     ora #$04
 $b7da  8d 0c 35  sta $350c
 $b7dd  a2 81     ldx #$81
 $b7df  4c 00 33  jmp $3300
-$b7e2  20 ed b7  jsr _b7ed
+
+_b7e2:             ; RAM entry point 69
+       20 ed b7  jsr _b7ed
 $b7e5  a2 84     ldx #$84
 $b7e7  20 00 33  jsr $3300
 $b7ea  4c 5c b8  jmp _b85c
@@ -7341,6 +7452,7 @@ $befa  a5 13     lda $13
 $befc  85 46     sta $46
 $befe  a9 23     lda #$23
 
+; RAM entry points
 _bf00:
 .byte $01
 _bf01:
@@ -7353,11 +7465,11 @@ _bf01:
 .byte $20,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
 .byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
 _bf80:
-.byte $0c,$c8,$c0,$a7,$8e,$48,$44,$21,$7b,$88,$dc,$29,$45,$5a,$6d,$76
-.byte $84,$05,$19,$82,$8f,$2c,$d6,$c3,$63,$2c,$07,$fe,$0e,$d0,$fd,$0a
-.byte $18,$15,$49,$44,$95,$ee,$25,$32,$54,$6a,$29,$25,$da,$10,$c2,$85
-.byte $29,$ad,$9c,$10,$10,$10,$10,$19,$20,$a0,$49,$0f,$b6,$c3,$1e,$a9
-.byte $f6,$68,$f8,$5c,$bc,$e1,$c2,$73,$73,$69,$6e,$67,$20,$23,$00,$68
-.byte $85,$37,$68,$85,$38,$a0,$00,$f0,$03,$20,$e3,$ff,$20,$4b,$89,$10
-.byte $f8,$6c,$37,$00,$20,$57,$98,$20,$25,$bc,$a0,$01,$b1,$fd,$f0,$06
-.byte $20,$0e,$b5,$c8,$d0,$f6,$4c,$9b,$8b,$00,"RogerG"
+.byte $0c,$c8,$c0,$a7,$8e,$48,$44,$21,$7b,$88,$dc,$29,$45,$5a,$6d
+.byte $76,$84,$05,$19,$82,$8f,$2c,$d6,$c3,$63,$2c,$07,$fe,$0e,$d0,$fd
+.byte $0a,$18,$15,$49,$44,$95,$ee,$25,$32,$54,$6a,$29,$25,$da,$10,$c2
+.byte $85,$29,$ad,$9c,$10,$10,$10,$10,$19,$20,$a0,$49,$0f,$b6,$c3,$1e
+.byte $a9,$f6,$68,$f8,$5c,$bc,$e1,$c2,$73,$73,$69,$6e,$67,$20,$23,$00
+.byte $68,$85,$37,$68,$85,$38,$a0,$00,$f0,$03,$20,$e3,$ff,$20,$4b,$89
+.byte $10,$f8,$6c,$37,$00,$20,$57,$98,$20,$25,$bc,$a0,$01,$b1,$fd,$f0
+.byte $06,$20,$0e,$b5,$c8,$d0,$f6,$4c,$9b,$8b,$00,"RogerG"

@@ -1,5 +1,8 @@
 .include "MOS.oph"
 
+; 0767: cursor x position
+; 0768: cursor y position
+
 ; $3030:               35
 ; $3060: 60
 ; $3130:       32
@@ -24,6 +27,11 @@ ic23_start:
 
 $8000  ea        nop
 $8001  ea        nop
+
+; This routine is called from RAM. Its entry point is the address defined by
+; the high byte at bf01 and the low byte at bf80, plus one. The offset is due
+; to the use of an RTS instruction to enter the routine.
+entry_from_ram:
 $8002  a2 02     ldx #$02
 $8004  86 2d     stx $2d
 $8006  a9 ef     lda #$ef
@@ -156,10 +164,12 @@ _8117: a9 03     lda #$03
 _8119: 85 2d     sta $2d
 $811b  a2 02     ldx #$02
 $811d  4c 00 33  jmp $3300
+
 _8120: a2 12     ldx #$12
 $8122  86 2d     stx $2d
 $8124  a2 04     ldx #$04
 $8126  4c 00 33  jmp $3300
+
 _8129: a2 00     ldx #$00
 $812b  d0 07     bne _8134
 _812d: 8a        txa
@@ -170,9 +180,11 @@ $8133  aa        tax
 _8134: 86 2d     stx $2d
 $8136  a2 01     ldx #$01
 $8138  4c 00 33  jmp $3300
+
 _813b: a2 01     ldx #$01
 $813d  20 34 81  jsr _8134
 $8140  4c 13 81  jmp _8113
+
 _8143: a2 03     ldx #$03
 $8145  4c 34 81  jmp _8134
 _8148: a2 05     ldx #$05
@@ -4591,7 +4603,7 @@ _a84b: c9 20     cmp #$20
 $a84d  90 04     bcc _a853
 $a84f  c9 7f     cmp #$7f
 $a851  90 02     bcc _a855
-_a853: a9 2e     lda #$2e
+_a853: a9 2e     lda #$2e       ; "."
 _a855: 4c ee ff  jmp OSWRCH
 
 _a858: c9 30     cmp #$30
@@ -4639,7 +4651,7 @@ $a89a  20 58 a8  jsr _a858
 $a89d  b0 06     bcs _a8a5
 $a89f  20 73 a8  jsr _a873
 $a8a2  4c 97 a8  jmp _a897
-_a8a5: a9 0c     lda #$0c
+_a8a5: a9 0c     lda #$0c       ; Clear text window
 $a8a7  20 ee ff  jsr OSWRCH
 $a8aa  a2 00     ldx #$00
 _a8ac: 8e 20 34  stx $3420
@@ -4689,12 +4701,12 @@ $a916  a9 ff     lda #$ff
 $a918  8d 05 3b  sta $3b05
 $a91b  60        rts
 _a91c: 20 4b a8  jsr _a84b
-_a91f: a9 3a     lda #$3a
+_a91f: a9 3a     lda #$3a       ; ":"
 $a921  4c ee ff  jmp OSWRCH
 $a924  20 1c a9  jsr _a91c
 $a927  8a        txa
 $a928  20 37 a8  jsr _a837
-_a92b: a9 20     lda #$20
+_a92b: a9 20     lda #$20       ; " "
 $a92d  4c ee ff  jmp OSWRCH
 $a930  20 7a ba  jsr _ba7a
 $a933  a9 10     lda #$10
@@ -4715,9 +4727,9 @@ _a95a: a2 00     ldx #$00
 $a95c  8e 44 34  stx $3444
 $a95f  20 ef aa  jsr _aaef
 $a962  20 58 bd  jsr _bd58
-_a965: a9 16     lda #$16
+_a965: a9 16     lda #$16       ; MODE
 $a967  20 ee ff  jsr OSWRCH
-$a96a  a9 03     lda #$03
+$a96a  a9 03     lda #$03       ; 3
 $a96c  20 ee ff  jsr OSWRCH
 $a96f  a9 00     lda #$00
 $a971  8d 14 34  sta $3414
@@ -4783,13 +4795,14 @@ $a9fa  d0 06     bne _aa02
 $a9fc  a2 ff     ldx #$ff
 $a9fe  8e f4 07  stx $07f4
 $aa01  60        rts
+
 _aa02: c9 7f     cmp #$7f
 $aa04  f0 3a     beq _aa40
 $aa06  ac da 37  ldy $37da
 $aa09  88        dey
-$aa0a  f0 03     beq _aa0f
+$aa0a  f0 03     beq +
 $aa0c  20 97 aa  jsr _aa97
-_aa0f: 20 82 aa  jsr _aa82
+*      20 82 aa  jsr _aa82  ; aa0f
 $aa12  a8        tay
 $aa13  30 2b     bmi _aa40
 $aa15  2c 9a 07  bit $079a
@@ -4811,18 +4824,29 @@ $aa39  f0 05     beq _aa40
 $aa3b  a9 0a     lda #$0a
 $aa3d  4c 02 aa  jmp _aa02
 _aa40: 60        rts
+
 _aa41: c9 9a     cmp #$9a
 $aa43  b0 0c     bcs _aa51
 $aa45  38        sec
 $aa46  e9 90     sbc #$90
 $aa48  aa        tax
-$aa49  bd 52 aa  lda _aa52,x
+$aa49  bd 52 aa  lda _aa52,x        ; Look up the high address byte (HH).
 $aa4c  48        pha
-$aa4d  bd 5c aa  lda _aa5c,x
+$aa4d  bd 5c aa  lda _aa5c,x        ; Look up the low address byte (LL).
 $aa50  48        pha
-_aa51: 60        rts
-_aa52: .byte bb aa aa af bd af ae aa bc aa
-_aa5c: .byte 17 50 50 cf 5e 12 38 50 2c 65 a9 34 18 6d 44 34 48 a2 60 20 54 33
+_aa51: 60        rts                ; Return via the routine at $HHLL+1.
+
+_aa52: .byte >_bb18 >_aa51 >_aa51 >_afd0 >_bd5f >_af13 >_ae39 >_aa51 >_bc2d >_aa66
+_aa5c: .byte <_bb18 <_aa51 <_aa51 <_afd0 >_bd5f <_af13 <_ae39 <_aa51 <_bc2d <_aa66
+
+; Via table at aa52:
+_aa66:
+$aa66  a9 34     lda #$34
+$aa68  18        clc
+$aa69  6d 44 34  adc $3444
+$aa6c  48        pha
+$aa6d  a2 60     ldx #$60
+$aa6f  20 54 33  jsr $3354
 
 _aa72: a9 79     lda #$79       ; Keyboard scan
 $aa74  a2 a6     ldx #$a6
@@ -4880,8 +4904,8 @@ $aad2  4c a5 aa  jmp _aaa5      ; Exit if not
 _aad5: 20 e7 aa  jsr write_record_char
 $aad8  20 f6 ac  jsr record_cursor_pos
 $aadb  a2 00     ldx #$00
-$aadd  a0 18     ldy #$18
-$aadf  20 08 ad  jsr _ad08
+$aadd  a0 18     ldy #$18                    ; A full row at y=24
+$aadf  20 08 ad  jsr define_text_window_row
 $aae2  20 a8 ac  jsr set_cursor_pos
 $aae5  68        pla
 $aae6  60        rts
@@ -5059,6 +5083,7 @@ _ac6a: e0 50     cpx #$50
 $ac6c  90 03     bcc _ac71
 $ac6e  20 ea ae  jsr _aeea
 _ac71: 60        rts
+
 _ac72: a2 00     ldx #$00
 $ac74  8e a1 07  stx $07a1
 $ac77  2e 9a 07  rol $079a
@@ -5136,10 +5161,12 @@ record_cursor_pos:
 $acf9  8e 67 07  stx $0767
 $acfc  8c 68 07  sty $0768
 $acff  60        rts
+
 _ad00: 20 a5 b6  jsr get_cursor_pos
 $ad03  cc 98 07  cpy $0798
 $ad06  90 0e     bcc clear_to_line_end
-_ad08: 98        tya
+define_text_window_row: ; ad08
+       98        tya                    ; Text window bottom=top
 $ad09  20 03 ae  jsr define_text_window
 $ad0c  a9 0a     lda #$0a               ; Newline
 $ad0e  20 ee ff  jsr OSWRCH
@@ -5201,13 +5228,16 @@ $ad78  c9 32     cmp #$32
 $ad7a  f0 3a     beq _adb6
 _ad7c: 20 24 ad  jsr _ad24
 $ad7f  4c a8 ac  jmp set_cursor_pos
+
 _ad82: 20 a5 b6  jsr get_cursor_pos
 $ad85  cc 98 07  cpy $0798
 $ad88  f0 06     beq _ad90
 $ad8a  20 16 ad  jsr clear_to_line_end
 $ad8d  4c 82 ad  jmp _ad82
+
 _ad90: 20 00 ad  jsr _ad00
 $ad93  4c 7c ad  jmp _ad7c
+
 _ad96: a9 1e     lda #$1e       ; Home
 $ad98  20 ee ff  jsr OSWRCH
 _ad9b: 20 a5 b6  jsr get_cursor_pos
@@ -5236,6 +5266,7 @@ $adce  f0 0d     beq _addd
 $add0  c9 32     cmp #$32
 $add2  f0 11     beq _ade5
 $add4  4c 7c ad  jmp _ad7c
+
 _add7: 20 00 ad  jsr _ad00
 $adda  4c 7c ad  jmp _ad7c
 _addd: a9 0d     lda #$0d       ; Carriage return
@@ -5283,6 +5314,8 @@ $ae30  4c b4 b7  jmp _b7b4
 _ae33: 2c 9a 07  bit $079a
 $ae36  10 01     bpl _ae39
 $ae38  60        rts
+
+; Via table at aa52:
 _ae39: 2c 9a 07  bit $079a
 $ae3c  30 3d     bmi _ae7b
 $ae3e  a9 80     lda #$80
@@ -5383,7 +5416,9 @@ _af0c: a2 00     ldx #$00
 $af0e  8e a1 07  stx $07a1
 $af11  68        pla
 $af12  60        rts
-$af13  2c 77 07  bit $0777
+
+; Via table at aa52:
+_af13: 2c 77 07  bit $0777
 $af16  30 20     bmi _af38
 $af18  ad 76 07  lda $0776
 $af1b  d0 03     bne _af20
@@ -5460,10 +5495,10 @@ $afe1  2c 9a 07  bit $079a
 $afe4  10 44     bpl _b02a
 $afe6  20 4c b4  jsr _b44c
 $afe9  a9 05     lda #$05
-$afeb  8d 78 07  sta $0778
+$afeb  8d 78 07  sta $0778      ; y=5
 _afee: a9 0a     lda #$0a
 $aff0  20 be ae  jsr _aebe
-$aff3  ce 78 07  dec $0778
+$aff3  ce 78 07  dec $0778      ; y--
 $aff6  d0 f6     bne _afee
 $aff8  a9 08     lda #$08
 $affa  2c 19 34  bit $3419
@@ -5482,7 +5517,7 @@ $b014  ad a1 07  lda $07a1
 $b017  d0 ef     bne _b008
 $b019  a9 0a     lda #$0a
 $b01b  20 be ae  jsr _aebe
-$b01e  ce 78 07  dec $0778
+$b01e  ce 78 07  dec $0778      ; y--
 $b021  10 e5     bpl _b008
 $b023  68        pla
 _b024: 20 7b ae  jsr _ae7b
@@ -5498,7 +5533,7 @@ $b03e  85 34     sta $34
 $b040  a9 00     lda #$00
 $b042  85 33     sta $33
 $b044  a9 19     lda #$19
-$b046  8d 78 07  sta $0778
+$b046  8d 78 07  sta $0778      ; y=25
 _b049: a9 28     lda #$28
 $b04b  8d 7c 07  sta $077c
 $b04e  a2 08     ldx #$08
@@ -5534,7 +5569,7 @@ $b087  20 9c b2  jsr read_key
 $b08a  b0 04     bcs _b090
 $b08c  e0 90     cpx #$90
 $b08e  f0 05     beq _b095
-_b090: ce 78 07  dec $0778
+_b090: ce 78 07  dec $0778      ; y--
 $b093  d0 b4     bne _b049
 _b095: a2 05     ldx #$05
 _b097: bd ab b0  lda _b0ab,x
@@ -6673,13 +6708,13 @@ $ba1b  c8        iny
 $ba1c  d0 f5     bne _ba13
 _ba1e: 4c f8 b9  jmp _b9f8
 $ba21  60        rts
-_ba22: a9 1f     lda #$1f
+_ba22: a9 1f     lda #$1f       ; VDU 31 (TAB)
 $ba24  20 ee ff  jsr OSWRCH
-$ba27  ad 8a 07  lda $078a
+$ba27  ad 8a 07  lda $078a      ; x
 $ba2a  20 ee ff  jsr OSWRCH
-$ba2d  ad 78 07  lda $0778
+$ba2d  ad 78 07  lda $0778      ; y
 $ba30  20 ee ff  jsr OSWRCH
-$ba33  ae 8a 07  ldx $078a
+$ba33  ae 8a 07  ldx $078a      ; x
 $ba36  e8        inx
 $ba37  8a        txa
 $ba38  48        pha
@@ -6695,7 +6730,7 @@ $ba46  48        pha
 $ba47  a9 08     lda #$08
 $ba49  20 ee ff  jsr OSWRCH
 $ba4c  4c 39 ba  jmp _ba39
-_ba4f: ae 8a 07  ldx $078a
+_ba4f: ae 8a 07  ldx $078a      ; x
 $ba52  e8        inx
 $ba53  e8        inx
 $ba54  8e 66 33  stx $3366
@@ -6751,7 +6786,7 @@ $bac3  8e 9a 07  stx $079a
 $bac6  8e a1 07  stx $07a1
 $bac9  8e f4 07  stx $07f4
 $bacc  a2 49     ldx #$49
-$bace  8e 8a 07  stx $078a
+$bace  8e 8a 07  stx $078a      ; x=73
 $bad1  a2 02     ldx #$02
 $bad3  8e f3 07  stx $07f3
 $bad6  a9 85     lda #$85
@@ -6763,6 +6798,7 @@ $bae3  e8        inx
 $bae4  e0 08     cpx #$08
 $bae6  90 f5     bcc _badd
 $bae8  4c 83 b9  jmp _b983
+
 _baeb:
 .byte ff 9f b1 95 b1 95 f5 ff
 
@@ -6781,6 +6817,8 @@ $bb0d  8d ec 35  sta $35ec
 $bb10  a9 ff     lda #$ff
 $bb12  8d 22 36  sta $3622
 $bb15  4c 9d bb  jmp _bb9d
+
+; Via the table at aa52:
 _bb18: ad 44 34  lda $3444
 $bb1b  f0 20     beq _bb3d
 $bb1d  a2 c0     ldx #$c0
@@ -6867,9 +6905,18 @@ _bbd2:
 .byte 17 de 18 3c 7e 5b 18 18 18 00 17 df 14 14 7f 14
 .byte 7f 14 14 00 17 9b 40 40 41 43 05 07 01 00 17 9c
 .byte 28 28 28 28 28 28 28 00 17 9d 70 08 71 0b 75 07
-.byte 01 00 17 9e 00 10 00 7e 00 00 10 00 ff ad 76 07
-.byte c9 ff f0 3d ad 7b 07 d0 08 a9 ff 8d 7b 07 20 fc
-.byte bc
+.byte 01 00 17 9e 00 10 00 7e 00 00 10 00 ff
+
+; Via table at aa52:
+_bc2d:
+$bc2d  ad 76 07  lda $0776
+$bc30  c9 ff     cmp #$ff
+$bc32  f0 3d     beq $bc71
+$bc34  ad 7b 07  lda $077b
+$bc37  d0 08     bne $bc41
+$bc39  a9 ff     lda #$ff
+$bc3b  8d 7b 07  sta $077b
+$bc3e  20 fc bc  jsr $bcfc
 
 _bc41: 20 f6 ac  jsr record_cursor_pos
 $bc44  ad 73 35  lda $3573
@@ -6997,10 +7044,12 @@ _bd57: 60        rts
 _bd58: a9 0f     lda #$0f
 $bd5a  a2 00     ldx #$00
 $bd5c  4c 54 33  jmp $3354
-$bd5f  20 4c b7  jsr _b74c
+
+; Via table at aa52:
+_bd5f: 20 4c b7  jsr _b74c
 $bd62  20 f6 ac  jsr record_cursor_pos
 $bd65  a2 ff     ldx #$ff
-$bd67  8e 78 07  stx $0778
+$bd67  8e 78 07  stx $0778      ; y=255
 $bd6a  2c 77 07  bit $0777
 $bd6d  10 05     bpl _bd74
 $bd6f  a9 0d     lda #$0d
@@ -7010,18 +7059,18 @@ $bd77  d0 08     bne _bd81
 $bd79  a9 ff     lda #$ff
 $bd7b  8d 76 07  sta $0776
 $bd7e  20 21 be  jsr _be21
-_bd81: ee 78 07  inc $0778
+_bd81: ee 78 07  inc $0778      ; y++
 $bd84  ae 78 07  ldx $0778
 $bd87  e0 19     cpx #$19
 $bd89  b0 78     bcs _be03
 $bd8b  20 f6 bc  jsr _bcf6
 $bd8e  d0 1c     bne _bdac
-$bd90  ce 78 07  dec $0778
+$bd90  ce 78 07  dec $0778      ; y--
 $bd93  20 40 be  jsr _be40
 $bd96  c9 ff     cmp #$ff
 $bd98  d0 05     bne _bd9f
 $bd9a  a9 19     lda #$19
-$bd9c  8d 78 07  sta $0778
+$bd9c  8d 78 07  sta $0778      ; y=25
 _bd9f: 20 b4 be  jsr _beb4
 $bda2  b0 75     bcs _be19
 _bda4: a2 89     ldx #$89
@@ -7037,11 +7086,11 @@ $bdbc  b0 c3     bcs _bd81
 $bdbe  20 b4 be  jsr _beb4
 $bdc1  b0 56     bcs _be19
 $bdc3  4c a4 bd  jmp _bda4
-_bdc6: a9 1f     lda #$1f
+_bdc6: a9 1f     lda #$1f       ; VDU 31 (TAB)
 $bdc8  20 ee ff  jsr OSWRCH
-$bdcb  a9 4f     lda #$4f
+$bdcb  a9 4f     lda #$4f       ; x=79 (rightmost column)
 $bdcd  20 ee ff  jsr OSWRCH
-$bdd0  ad 78 07  lda $0778
+$bdd0  ad 78 07  lda $0778      ; y
 $bdd3  20 ee ff  jsr OSWRCH
 $bdd6  a9 00     lda #$00
 $bdd8  8d 8b 07  sta $078b
@@ -7059,7 +7108,7 @@ $bdeb  99 66 33  sta $3366,y
 $bdee  c9 21     cmp #$21
 $bdf0  90 03     bcc _bdf5
 $bdf2  ce 8b 07  dec $078b
-_bdf5: a9 08     lda #$08
+_bdf5: a9 08     lda #$08       ; Backspace
 $bdf7  20 ee ff  jsr OSWRCH
 $bdfa  4c e0 bd  jmp _bde0
 _bdfd: a9 00     lda #$00
@@ -7067,13 +7116,14 @@ $bdff  cd 8b 07  cmp $078b
 $be02  60        rts
 _be03: a9 00     lda #$00
 $be05  8d 66 33  sta $3366
-$be08  a9 07     lda #$07
+$be08  a9 07     lda #$07       ; Bell
 $be0a  20 ee ff  jsr OSWRCH
 $be0d  a2 78     ldx #$78
 $be0f  20 d5 b9  jsr _b9d5
-_be12: a9 15     lda #$15
-$be14  a2 00     ldx #$00
+_be12: a9 15     lda #$15       ; Flush buffer
+$be14  a2 00     ldx #$00       ; Keyboard
 $be16  4c f4 ff  jmp OSBYTE
+
 _be19: a2 7a     ldx #$7a
 $be1b  20 d5 b9  jsr _b9d5
 $be1e  4c 12 be  jmp _be12
@@ -7170,6 +7220,8 @@ $beeb  a9 4d     lda #$4d
 $beed  cd 78 35  cmp $3578
 _bef0: 60        rts
 .byte 60 60 20 6f be a5 12 85 45 a5 13 85 46 a9 23
+
+_bf00: ; Bytes at bf01 and bf80 provide an entry point for the ROM from RAM.
 .byte 03 80 9b 80 80 97 97 97 80 82 97 9c 9d a2 a6 a4
 .byte a4 a6 a7 a7 a9 b1 b0 00 00 00 00 00 00 00 00 00
 .byte 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00

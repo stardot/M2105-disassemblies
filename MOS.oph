@@ -1,4 +1,8 @@
+.alias rom_id $f4
+
 .alias OSRDRM $ffb9
+.alias OSARGS $ffda
+.alias OSRDCH $ffe0
 .alias OSASCI $ffe3
 .alias OSNEWL $ffe7
 .alias OSWRCH $ffee
