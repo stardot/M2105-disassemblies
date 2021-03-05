@@ -2199,9 +2199,11 @@ _8d47:
 .byte $00,$00,$00,$e2,$2d,$65,$67,$41,$63,$6f,$70,$79,$00,$86,$30,$00
 .byte $00,$00,$f1,$2d,$65,$67,$58,$63,$6f,$70,$79,$00,$86,$34,$00,$00
 .byte $00,$d3,$2e,$65,$67,$59,$63,$6f,$70,$79,$00,$86,$38,$00,$00,$00
-.byte $60
 
-_8e01:
+_8e00:          ; ROM entry point 0
+    rts
+
+_8e01:          ; RAM entry point 9
     lda $3571
     sta $04d9
     cmp #$01
@@ -2591,7 +2593,7 @@ _90ce:
 _90cf:
 .byte $01,$02,$04,$04,$05,$06,$07,$02
 
-_90d7:
+_90d7:          ; RAM entry point 10
     jsr _a1de
     jsr _9234
     jsr _9392
@@ -2649,7 +2651,7 @@ _9148:
 _9153:
     rts
 
-_9154:
+_9154:          ; RAM entry point 11
     jsr _9234
     jsr _915d
     jmp _923a
@@ -2659,6 +2661,8 @@ _915d:
     jsr _93d1
     ldx $0400
     jmp $3300
+
+_916b:          ; RAM entry point 13
     jsr _a1de
     jsr _9234
     jsr _9227
@@ -2681,6 +2685,8 @@ _918e:
     jsr _91f6
     jsr _a261
     jmp _923a
+
+_919e:          ; RAM entry point 14
     jsr _a1de
     jsr _9234
     lda $35ed
@@ -2693,6 +2699,8 @@ _918e:
 _91b6:
     jsr _a261
     jmp _923a
+
+_91bc:          ; RAM entry point 12
     jsr _a1de
     jsr _9234
     jsr _928a
@@ -2810,7 +2818,7 @@ _9297:
     ldx #$4f
     jmp _93d1
 
-_92a8:
+_92a8:          ; RAM entry point 20
     lda #$01
     sta $3571
     lda #$22
@@ -3026,7 +3034,7 @@ _943a:
     rts
 
 copy_data_at_9455_to_350b:
-_9448:
+_9448:              ; RAM entry point 7
     ldx _9455       ; This is #$66 from the table below.
 _944b:
     lda _9454,x     ; Offset is from 1 byte before the data.
@@ -3045,7 +3053,7 @@ _9455:
 .byte $20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$20,$00,$2d,$00
 .byte $00,$00,$00,$00,$00,$00
 
-_94bb:
+_94bb:          ; RAM entry point 15
     jsr _9234
     jsr _928a
     jsr _9227
@@ -3166,7 +3174,8 @@ _95ba:
     lda #$90
     ldy #$04
     jmp $3300
-_95c1:
+
+_95c1:          ; RAM entry point 16
     jsr _960d
     ldy #$3b
     ldx #$16
@@ -3215,6 +3224,8 @@ _9611:
     dex
     bne _9611
     rts
+
+_961a:          ; RAM entry point 17
     jsr _9234
     lda #$00
     sta $040b
@@ -3410,7 +3421,7 @@ _9752:
     jsr _93d8
     ldx #$4b
     jmp _93d8
-_97d9:
+_97d9:          ; RAM entry point 8
     sta $37
     sty $38
     ldx #$0a
@@ -3504,7 +3515,7 @@ _9890:
     lda _9870,y     ; ...load the corresponding entry in the table after.
     rts
 
-_9894:
+_9894:          ; RAM entry point 19
     sta $39
     sty $3a
     lda #$00
@@ -3737,7 +3748,7 @@ _9a59:
 _9a5c:
     rts
 
-_9a5d:
+_9a5d:          ; RAM entry point 18
     sta $39
     sty $3a
     stx $049b
@@ -3868,7 +3879,7 @@ _9b30:
 _9b4d:
     rts
 
-_9b4e:
+_9b4e:          ; RAM entry point 3
     lda $3419
     and #$20
     beq _9b5b
@@ -4007,7 +4018,7 @@ _9c65:
     jsr transfer_between_3570_and_0400
     ldx #$55
     jmp _93d1
-_9c7e:
+_9c7e:          ; RAM entry point 6
     jsr _9ca2
     ldx #$4c
     jsr _93d1
@@ -4036,7 +4047,7 @@ _9ca2:
     jsr _93d8
     rts
 
-_9cbc:
+_9cbc:          ; RAM entry point 2
     lda #$00
     ldx #$08
     stx $2d
@@ -4145,10 +4156,14 @@ _9d74:
     jmp _9d74
 _9d8a:
     rts
+
+_9d8b:          ; RAM entry point 4
     sty $04c4
     lda #$00
     sta $04c6
     jmp _9d9e
+
+_9d96:          ; RAM entry point 5
     sty $04c4
     lda #$01
     sta $04c6
@@ -4607,7 +4622,7 @@ _a0aa:
 _a0d7:
     rts
 
-_a0d8:
+_a0d8:              ; RAM entry point 1
     jsr _9d31
     ldx #$58
     jsr $3300
@@ -4816,7 +4831,7 @@ _a25b:
 _a260:
     rts
 
-_a261:
+_a261:          ; RAM entry point 21
     jsr _a26b
     lda $04ce
     sta $fded
@@ -4894,7 +4909,7 @@ _a33b:
 .byte $19,$11,$09,$16,$03,$19,$11,$09,$03,$03,$19,$11,$09,$00,$13,$23
 .byte $53,$63,$93,$a3,$d3,$e3,$03,$03,$03
 
-_a379:
+_a379:          ; RAM entry point 22
     lda $3749
     sta $3747
     cmp #$10
@@ -4936,7 +4951,7 @@ _a3c2:
     ldx #$1e
     jmp $3300
 
-_a3cb:
+_a3cb:          ; RAM entry point 23
     jsr _bd47
     lda #$64
     sta $381a
@@ -8823,11 +8838,9 @@ _bf7f:
 .byte $8d
 _bf80:
 .byte $ff,$d7,$bb,$4d,$8a,$95,$7d,$47,$d8,$00,$d6,$53,$bb,$6a,$9d,$ba
-.byte $c0,$19,$5c,$93,$a7,$60
+.byte $c0,$19,$5c,$93,$a7,$60,$78,$ca
 
-_bf96:
-    sei
-    dex
+_bf98:
     sec
     jmp _bd55
     clc
