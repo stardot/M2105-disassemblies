@@ -351,7 +351,8 @@ _8229:
     brk
 
 ram_code:               ; This code is copied into RAM at $3300 at boot up.
-_3300:                  ; 822b
+; 822b
+_3300:                  ; X=index into RAM entry arrays at the end of the ROM
     sta $2c
     lda rom_id
     pha
@@ -576,29 +577,31 @@ _839a:
     rts
 
 ; Called from the RAM code:
-_839b:
+_839b:          ; X=index into RAM entry arrays across all ROMs
     php
     cpx #$c1
-    bcc _83a3
+    bcc +
     brk
     brk
     brk
-_83a3:
-    txa
+*
+    txa         ; A=X=index
     stx $0512   ; Store X in $512
     tsx
-    stx $0513
-    sty $2e
+    stx $0513   ; Store the stack pointer in $513
+    sty $2e     ; Store Y in $2e
     ldy #$ff
     sec
-_83b0:
-    iny
+*
+    iny         ; Pre-increment Y so that the array below is zero-indexed
     tax
-    sbc _83bc,y
-    bcs _83b0
+    sbc _83bc,y ; Subtract the number of routines in each ROM
+    bcs -       ; until the result is less than zero
     plp
-    lda $0516,y
+    lda $0516,y ; Load the bank of the ROM containing the routine
     rts
+
+; These are the number of routines in each ROM.
 _83bc:
 .byte $47,$4c,$16,$18,$00,$00,$00,$00
 
@@ -7589,7 +7592,7 @@ _bef3:
 _bf00:
 .byte $01
 _bf01:
-.byte $a6,$a4,$a5,$a5,$a4,$a7,$a7,$a3,$a4,$a4,$a3,$a3,$a5,$a2,$a2
+.byte     $a6,$a4,$a5,$a5,$a4,$a7,$a7,$a3,$a4,$a4,$a3,$a3,$a5,$a2,$a2
 .byte $a2,$a2,$a3,$a3,$a5,$a6,$a1,$a4,$a4,$a7,$a8,$a2,$90,$91,$83,$83
 .byte $84,$84,$84,$84,$84,$84,$84,$85,$85,$84,$81,$83,$33,$87,$8c,$87
 .byte $8e,$90,$8f,$8e,$90,$90,$90,$90,$9f,$9f,$9c,$99,$93,$96,$96,$91
@@ -7598,7 +7601,7 @@ _bf01:
 .byte $20,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
 .byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
 _bf80:
-.byte $0c,$c8,$c0,$a7,$8e,$48,$44,$21,$7b,$88,$dc,$29,$45,$5a,$6d
+.byte     $0c,$c8,$c0,$a7,$8e,$48,$44,$21,$7b,$88,$dc,$29,$45,$5a,$6d
 .byte $76,$84,$05,$19,$82,$8f,$2c,$d6,$c3,$63,$2c,$07,$fe,$0e,$d0,$fd
 .byte $0a,$18,$15,$49,$44,$95,$ee,$25,$32,$54,$6a,$29,$25,$da,$10,$c2
 .byte $85,$29,$ad,$9c,$10,$10,$10,$10,$19,$20,$a0,$49,$0f,$b6,$c3,$1e
