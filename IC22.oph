@@ -132,7 +132,7 @@ self_test:          ; 808d
     jsr [$3300 + _3354 - ram_code]
     lda $340e
     sta $37d3
-    lda #$42       ; OSBYTE &42 - see IC24-SK1
+    lda #$42        ; OSBYTE &42 - see IC24-SK1
     ldx #$ff
     jsr OSBYTE
     lda #$80
@@ -3535,8 +3535,8 @@ _9b4d:
     ldx #$7d
     jsr $3300
 _9b57:
-    ldx #$c0
-    lda #$79
+    ldx #$c0        ; Key $40 (Caps lock)
+    lda #$79        ; Scan keyboard
     jsr OSBYTE
     txa
     bmi _9b83
@@ -4299,7 +4299,7 @@ _a168:
     ldx #$0a
     ldy #$fd
     jsr _a1f6
-    lda #$45
+    lda #$45        ; OSBYTE &45 - see IC24-SK1
     jsr OSBYTE
     ldx #$7c
     jsr _a4c9
@@ -4336,7 +4336,7 @@ _a168:
     jsr _a583
 _a1c4:
     ldx #$ff
-    lda #$42
+    lda #$42        ; OSBYTE &42 - see IC24-SK1
     jsr OSBYTE
     jsr _ae97
     lda #$80
@@ -5105,7 +5105,7 @@ _a7d7:
     stx $360f
     jmp _a484
 _a7e2:
-    lda #$86
+    lda #$86        ; Read text cursor position
     jsr OSBYTE
     stx $05c7
     sty $05c8
@@ -5334,18 +5334,18 @@ _a8e6:
 .byte $6f,$ee,$69,$6e,$e7,$65,$e4
 
 _ae97:
-    lda #$7c
+    lda #$7c        ; Clear ESCAPE condition
     jsr OSBYTE
     cli
-    lda #$81
+    lda #$81        ; Read key
     ldy #$00
     jsr OSBYTE
-    bcs _aeb1
+    bcs _aeb1       ; Key not pressed or ESCAPE pressed
     txa
     and #$5f
-    cmp #$44
+    cmp #$44        ; "D"
     beq _aeb2
-    cmp #$58
+    cmp #$58        ; "X"
     beq _aeca
 _aeb1:
     rts
@@ -7538,7 +7538,7 @@ _be94:
     bne _be6a
     rts
 
-; This appears to be obsolete code:
+; This appears to be obsolete code which also appears in IC24-SK1:
 _beaf:
     jmp $8af6
 _beb2:
@@ -7573,10 +7573,10 @@ _bedd:
     sty $39
     lda $18
     sta $3a
-    lda #$82
+    lda #$82        ; OSBYTE &82 (Read machine high order address)
     jsr OSBYTE
-    stx $3b
-    sty $3c
+    stx $3b         ; low (the EAUG assigns these incorrectly)
+    sty $3c         ; high
     lda #$00
     rts
 
