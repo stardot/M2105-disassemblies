@@ -16,6 +16,9 @@
 ; SRA   status register A
 ; SRB   status register B
 
+; The addresses are derived from table 1 in the SCN2681 datasheet and knowing
+; that the DUART is mapped into $fc50.
+
 .alias DUART_MRA $fc50
 .alias DUART_MR1A $fc50
 .alias DUART_MR2A $fc50
