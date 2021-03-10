@@ -1,7 +1,10 @@
 .alias rom_id $f4
 
 .alias OSRDRM $ffb9
+.alias OSFIND $ffce
+.alias OSGBPB $ffd1
 .alias OSARGS $ffda
+.alias OSFILE $ffdd
 .alias OSRDCH $ffe0
 .alias OSASCI $ffe3
 .alias OSNEWL $ffe7
