@@ -4,7 +4,7 @@ import os, sys
 
 sources = [
     "IC22.oph",
-#    "IC23.oph",
+    "IC23.oph",
     "IC24-SK1.oph",
     "IC24-SK2.oph"
     ]
