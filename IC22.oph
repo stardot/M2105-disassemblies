@@ -113,9 +113,9 @@ self_test:          ; 808d
     jsr setup       ; 8778
     lda #$63        ; "c"
     jsr OSWRCH
-    jsr _82ff       ; Copy code into RAM.
-    jsr _83c4       ; Find which banks the ROMs are in.
-    jsr [$3300 + _3389 - ram_code]
+    jsr copy_code_into_ram
+    jsr find_rom_banks
+    jsr [$3300 + _3389 - _3300]
     lda #$0d        ; Carriage return
     jsr OSASCI
     ldx #$ff
@@ -129,7 +129,7 @@ self_test:          ; 808d
     lda #$06
     sta $3605
     lda #$25
-    jsr [$3300 + _3354 - ram_code]
+    jsr [$3300 + _3354 - _3300]
     lda $340e
     sta $37d3
     lda #$42        ; OSBYTE &42 - see IC24-SK1
@@ -359,7 +359,7 @@ _3300:                  ; X=index into RAM entry arrays at the end of the ROM
     lda $0516           ; Load the ROM bank containing IC22 (ROM 1).
     sta rom_id          ; Page in IC22.
     sta PAGING_SHEILA
-    jsr _839b           ; An address in ROM, not RAM.
+    jsr get_bank_for_routine    ; Pass X=index and obtain A=ROM bank for routine
     bmi _331c
     sta rom_id
     sta PAGING_SHEILA
@@ -444,7 +444,7 @@ _337d:              ; 82a8
 _3383:              ; 82ae
     dey
     bpl _336b
-    jmp [$3300 + _331c - ram_code]
+    jmp [$3300 + _331c - _3300]
 
 _3389:
     lda rom_id
@@ -485,10 +485,11 @@ _33cb:              ; 82f6
     bne _3390       ; Check the next array element.
     dey
     beq _338e       ; Check the array twice.
-    jmp [$3300 + _331c - ram_code]
+    jmp [$3300 + _331c - _3300]
 ; End of RAM code
 
-_82ff:
+; 82ff
+copy_code_into_ram:
     ldx #$d4
     lda #$00
     sta $2e
@@ -577,9 +578,10 @@ _839a:
     rts
 
 ; Called from the RAM code:
-_839b:          ; X=index into RAM entry arrays across all ROMs
+; 839b
+get_bank_for_routine:   ; X=index into RAM entry arrays across all ROMs
     php
-    cpx #$c1
+    cpx #$c1            ; Total number of routines (sum of rom_routine_count)
     bcc +
     brk
     brk
@@ -595,25 +597,26 @@ _839b:          ; X=index into RAM entry arrays across all ROMs
 *
     iny         ; Pre-increment Y so that the array below is zero-indexed
     tax
-    sbc _83bc,y ; Subtract the number of routines in each ROM
-    bcs -       ; until the result is less than zero
+    sbc rom_routine_count,y ; Subtract the number of routines in each ROM
+    bcs -                   ; until the result is less than zero
     plp
     lda $0516,y ; Load the bank of the ROM containing the routine
     rts
 
 ; These are the number of routines in each ROM.
-_83bc:
+; 83bc:
+rom_routine_count:
 .byte $47,$4c,$16,$18,$00,$00,$00,$00
 
-find_roms:
-_83c4:
+; 83c4:
+find_rom_banks:
     ldx #$08        ; Writes 8 bytes
     lda #$ff        ; of $ff to $516-$51d
 *
     sta $0515,x
     dex
     bne -
-    jmp [$3300 + _3366 - ram_code]
+    jmp [$3300 + _3366 - _3300]
 
 _83d1:             ; RAM entry point 29
     php
@@ -4809,7 +4812,7 @@ _a5d9:
     ldy _a5e8,x         ; Load high and
     lda [_a5e5 - 1],x   ; low bytes of parameter block address.
     tax
-    lda #$07       ; SOUND
+    lda #$07            ; SOUND
     jmp OSWORD
 
 _a5e5:
@@ -4818,14 +4821,15 @@ _a5e8:
 .byte $05               ; ...
 .byte $a5,$a5,$a5,$a6   ; high bytes of parameter blocks
 
+; These are standard sound parameter blocks:
 _a5ed:
-.byte $01,$00,$f1,$ff,$4b,$00,$01,$00
+.byte $01,$00,$f1,$ff,$4b,$00,$01,$00   ; SOUND 1,-15,75,1
 _a5f5:
-.byte $01,$00,$f1,$ff,$7d,$00,$02,$00
+.byte $01,$00,$f1,$ff,$7d,$00,$02,$00   ; SOUND 1,-15,125,2
 _a5fd:
-.byte $01,$00,$f1,$ff,$af,$00,$04,$00
+.byte $01,$00,$f1,$ff,$af,$00,$04,$00   ; SOUND 1,-15,175,4
 _a605:
-.byte $01,$00,$f1,$ff,$e1,$00,$08,$00
+.byte $01,$00,$f1,$ff,$e1,$00,$08,$00   ; SOUND 1,-15,225,8
 
 ; This routine is called from RAM. Its entry point is the address defined by
 ; the high byte at bf01 and the low byte at bf80, plus one. The offset is due
