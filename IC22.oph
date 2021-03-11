@@ -5146,13 +5146,14 @@ _a81a:
     sty $28
     ldy #$0c
     sty $29
-    jsr _a82d
+    jsr print_message
     sty $05d0
     lda #$84
     sta ($28),y
     rts
 
-_a82d:             ; RAM entry point 25
+; a82d
+print_message:      ; RAM entry point 25
     sta $05d0
     lda #$e6
     sta $26

@@ -31,6 +31,7 @@
 .alias DUART_IPCR $fc54
 .alias DUART_ACR $fc54
 .alias DUART_ISR $fc55
+.alias DUART_IMR $fc55
 .alias DUART_CTU $fc56
 .alias DUART_CTL $fc57
 .alias DUART_MRB $fc58

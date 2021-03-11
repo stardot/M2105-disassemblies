@@ -170,7 +170,7 @@ _80e6:
     sta VIA1_IER        ; Disable the CB2 interrupt in VIA1.
     lda RAM_DUART_ISR
     and #$f7            ; Disable the counter interrupt in the DUART.
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     lda #$00
     sta $3f10
@@ -877,7 +877,7 @@ _843b:
 _8446:
     lda RAM_DUART_ISR
     ora $80             ; Enable port change interrupt (SCN2681, p12).
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     rts
 
@@ -887,7 +887,7 @@ _8452:
     and #$03
     eor #$ff            ; Toggle bits 0 and 1, set bits 2-7.
     and RAM_DUART_ISR
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     rts
 
@@ -1108,7 +1108,7 @@ _85a7:
 _85bc:
     lda RAM_DUART_ISR
     ora $80             ; Enable port change interrupt.
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     rts
 
@@ -1129,14 +1129,14 @@ _85d2:
     and #$30            ; Toggle bits 7 and 6, set bits 0-5.
     eor #$ff            ; See SCN2681, p12.
     and RAM_DUART_ISR
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     bit $80
     bvc _8609
     bpl _8601
     lda #$7f
     and RAM_DUART_ISR
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     lda #$f3
     jsr mask_duart_acr
@@ -1353,7 +1353,7 @@ _875f:
 osword_81_25:
 setup_vias_and_duart:
     lda #$00
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     lda #$0f
     sta $3f13
@@ -1506,7 +1506,7 @@ osword_81_29:
     jsr _88d0
     lda RAM_DUART_ISR
     ora #$08
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     lda #$88
     sta VIA1_IFR
@@ -1699,7 +1699,7 @@ _8a07:
     lda DUART_STOP_CC   ; Stop the DUART counter.
     lda RAM_DUART_ISR
     and #$f7            ; Clear the counter interrupt in the DUART.
-    sta DUART_ISR
+    sta DUART_IMR
     sta RAM_DUART_ISR
     lda #$00
     sta $3f10
