@@ -124,11 +124,11 @@ self_test:          ; 808d
     stx $0515
     lda #$0e
     sta $3412
-    lda #$07
+    lda #$07        ; Store the length of an OSWORD parameter block
     sta $340b
     lda #$06
     sta $3605
-    lda #$25
+    lda #$25        ; OSBYTE &82 $25 (setup) - see IC24-SK1
     jsr [$3300 + _3354 - _3300]
     lda $340e
     sta $37d3
@@ -1211,9 +1211,9 @@ _879f:
     lda $3418
     ora #$01
     sta $3418
-    lda #$1c
+    lda #$1c        ; Command $1c
     ldx #$08
-    jsr _8bfd
+    jsr _8bfd       ; OSWORD &81
     ldx #$07
     jmp _910f
 
@@ -1750,11 +1750,11 @@ _8b7a:
     jsr _8bf6
     ldx #$03
     jsr _910f
-    lda #$13
-    jmp _8bfd
+    lda #$13        ; Disable DUART channel B receiver
+    jmp _8bfd       ; OSWORD &81
 
 _8b87:
-    lda #$12
+    lda #$12                    ; OSWORD &81 $12 (enable DUART channel B rx)
     jsr [$3300 + _3354 - _3300]
     lda #$f4
     ldy #$87
@@ -1765,10 +1765,10 @@ _8b87:
     jmp _8bef
 
 _8b9d:
-    lda #$1f
+    lda #$1f                    ; OSWORD &81 $1f
     ldx #$00
     jsr [$3300 + _3354 - _3300]
-    lda #$20
+    lda #$20                    ; OSWORD &81 $20
     ldx #$1c
     jmp [$3300 + _3354 - _3300]
 
@@ -1801,13 +1801,13 @@ _8bca:
     rts
 
 _8bd5:
-    lda #$18
-    jsr _8bfd
+    lda #$18            ; Read from DUART channel B
+    jsr _8bfd           ; Call OSWORD &81
     lda $0592
     and #$f1
     cmp #$01
     beq _8bea
-    lda #$16
+    lda #$16            ; Reset channel B error status
     jsr _8bfd
     clc
     rts
@@ -1818,14 +1818,14 @@ _8bea:
     rts
 
 _8bef:
-    lda #$1b
+    lda #$1b                    ; OSWORD &81 $1b
     ldx #$02
     jmp [$3300 + _3354 - _3300]
 
 _8bf6:
-    lda #$1c
+    lda #$1c        ; Command $1c
     ldx #$02
-    jmp _8bfd
+    jmp _8bfd       ; Call OSWORD &81
 
 _8bfd:
     stx $0594       ; Store values in memory for the OSWORD &81 call.
@@ -1888,9 +1888,9 @@ _8d28:
 .byte $00,$c1,$81,$40,$01,$c0,$80,$41,$01,$c0,$80,$41,$00,$c1,$81,$40
 
 _8e28:
-    lda #$23
+    lda #$23        ; Setup VIA2 interrupts?
     ldx #$03
-    jsr _8bfd
+    jsr _8bfd       ; OSWORD &81
     ldx #$05
     jsr _910f
     ldx #$06
@@ -1905,8 +1905,8 @@ _8e28:
     ldy #$00
     lda ($43),y
     tax
-    lda #$21
-    jsr _8bfd
+    lda #$21        ; Write to VIA2 port A
+    jsr _8bfd       ; OSWORD &81
     lda $43
     ldx $44
     jsr _8f9b
@@ -1921,9 +1921,9 @@ _8e28:
     lda #$01
     ldx #$08
     jsr _8533
-    lda #$23
+    lda #$23        ; Setup VIA2 interrupts?
     ldx #$01
-    jsr _8bfd
+    jsr _8bfd       ; OSWORD &81
     ldx #$06
     jsr _910f
 _8e7f:
@@ -2155,19 +2155,19 @@ _9011:             ; RAM entry points 51-54
     rts
 
 _9012:
-    lda #$21
+    lda #$21                    ; OSWORD &81 $21 (Write to VIA2 port A)
     jmp [$3300 + _3354 - _3300]
 
 _9017:
-    lda #$22
+    lda #$22                    ; OSWORD &81 $22 (Read from VIA2 port B)
     jmp _9023
 
 _901c:
-    lda #$23
+    lda #$23                    ; OSWORD &81 $23 (setup VIA2 interrupts?)
     jmp [$3300 + _3354 - _3300]
 
 _9021:
-    lda #$24
+    lda #$24                    ; OSWORD &81 $24 (setup DUART interrupts?)
 _9023:
     jsr [$3300 + _3354 - _3300]
     lda $340e
@@ -2227,22 +2227,23 @@ _907d:
     bcs _9033
     jsr _90b1
     beq _9033
-    lda #$19
-    jsr _90a3
+    lda #$19        ; Read DUART channel B
+    jsr _90a3       ; OSWORD &81
     lda $0592
     and #$04
     beq _9033
     ldx #$13
     stx $3445
-    lda #$1a
+    lda #$1a        ; Write X to DUART channel B
     jsr _90a3
     jmp _9033
     rts
 
-_90a3:
-    stx $0594
-    sta $0591
-    lda #$06
+_90a3:              ; Prepare an OSWORD &81 parameter block
+                    ; A=command, X=argument
+    stx $0594       ; Store X in the parameter block
+    sta $0591       ; Command type
+    lda #$06        ; 6 bytes in length
     sta $058f
     jmp _8c08
 
@@ -2261,8 +2262,8 @@ _90bc:
     pha
     tya
     pha
-    lda #$24
-    jsr _8bfd       ; Call
+    lda #$24        ; Command $24
+    jsr _8bfd       ; Call OSWORD &81
     lda $0592
     ldx #$07
     sec
@@ -5482,7 +5483,7 @@ _af85:
     bcc _afb6
     cmp #$fe
     beq _afa1
-    lda #$42       ; OSWORD &42 - see IC24-SK1.
+    lda #$42       ; OSBYTE &42 - see IC24-SK1.
     ldx #$ff
     jsr OSBYTE
     lda $18
@@ -5581,16 +5582,16 @@ _b045:
     lda #$0a
 _b047:
     sta $0c95
-    lda #$07
+    lda #$07        ; Write OSWORD parameter block length
     sta $0c90
     tya
     pha
     txa
     pha
 _b053:
-    lda #$22
+    lda #$22        ; Command type is $22 (Read from VIA2 port B)
     sta $0c92
-    jsr _b06f
+    jsr _b06f       ; Call OSWORD &81
     lda $0c93
     cmp #$80
     bne _b053
@@ -5602,6 +5603,7 @@ _b053:
     pla
     tay
     rts
+
 _b06f:
     lda #$81        ; OSWORD &81 - see IC24-SK1
     ldx #$90

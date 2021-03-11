@@ -586,8 +586,8 @@ _82c1: .byte $06,$00,$03,$04,$06, $08, $09, $0b, $0c,  $01, $05, $0a
 
 ; OSBYTE &40
 
+; 82cd
 osbyte_40:
-_82cd:
     ldx DUART_IP    ; Read the input ports.
     stx $f0         ; Make the OSBYTE call return the value in X.
     clc
@@ -596,7 +596,6 @@ _82cd:
 ; OSBYTE &41
 
 osbyte_41:
-_82d4:
     ldx $ee         ; 1MHz bus page number (EAUG, p188)
     lda $f0         ; X value passed to OSBYTE
     stx $f0         ; Store the page number in $f0 to return it from OSBYTE in X.
@@ -608,19 +607,19 @@ _82d4:
 ; OSBYTE &42
 ; Read from port B of VIA 2
 
+; 82e1
 osbyte_42:
-
-_82e1:
+read_via2_b:
     lda VIA2_RB
-    pha
+    pha             ; Save the value from the port
     and #$40
     beq _82eb
     lda #$ff
 _82eb:
     eor #$ff
     tax
-    lda $f0
-    stx $f0
+    lda $f0         ; Load OSBYTE X argument
+    stx $f0         ; Save the result to return from OSBYTE as X
     and #$01
     bne _82ff
     pla
@@ -637,8 +636,8 @@ _8305:
 
 ; OSBYTE &43
 
+; 8307
 osbyte_43:
-_8307:
     lda $f0
     jsr speech_get_byte
     sta $f0
@@ -647,8 +646,8 @@ _8307:
 
 ; OSBYTE &44
 
+; 8310
 osbyte_44:
-_8310:
     lda $f0             ; OSBYTE X argument
     jsr send_speech_command
     sta $f0
@@ -657,9 +656,9 @@ _8310:
 
 ; OSBYTE &45
 
+; 8319
 osbyte_45:
-_8319:
-    jsr _8768
+    jsr setup_vias_and_duart
     lda $3f16
     beq _8335
     jsr osbyte_47  ; $8341
@@ -668,15 +667,15 @@ _8319:
 _8327: .byte "Bad reset", 13
 _8331:
     nop
-    jsr _8347       ; ### This looks like an address stored in a look-up table.
+    jsr osbyte_48   ; ### This looks like an address stored in a look-up table.
 _8335:
     clc
     rts
 
 ; OSBYTE &46
 
+; 8337
 osbyte_46:
-_8337:
     lda #$ff
     sta $3f13
     jsr _890e
@@ -685,69 +684,77 @@ _8337:
 
 ; OSBYTE &47
 
+; 8341
 osbyte_47:
-_8341:
     lda #$ff
     sta $84
     clc
-_8346:
+; 8346
     rts
 
 ; OSBYTE &48
 
+; 8347
 osbyte_48:
-_8347:
     lda #$00
     sta $84
     clc
     rts
 
-; OSWORD 
+; OSWORD &81
 
+; 834d
 osword_81_00:
-_834d:
+enable_duart_a_tx:
     lda #$04        ; Enable channel A transmitter - TxRDY status bit will be
     sta DUART_CRA   ; asserted.
     rts
 
+; 8353
 osword_81_01:
-_8353:
+disable_duart_a_tx:
     lda #$08        ; Disable channel A transmitter, reset TxDRY and TxEMT.
     sta DUART_CRA
     rts
 
+; 8359
 osword_81_02:
-_8359:
+enable_duart_a_rx:
     lda #$01        ; Enable channel A receiver.
     sta DUART_CRA
     rts
 
+; 835f
 osword_81_03:
-_835f:
+disable_duart_a_rx:
     lda #$02        ; Disable channel A receiver.
     sta DUART_CRA
     rts
 
+; 8365
 osword_81_04:
-_8365:
+reset_duart_a_tx:
     lda #$30        ; Reset channel A transmitter.
     sta DUART_CRA
     rts
 
+; 836b
 osword_81_05:
-_836b:
+reset_duart_a_rx:
     lda #$20        ; Reset channel A receiver, flush FIFO.
     sta DUART_CRA
     rts
 
+; 8371
 osword_81_06:
-_8371:
+reset_duart_a_error:
     lda #$40        ; Reset error status, clears channel A Received Break Parity
     sta DUART_CRA   ; and Overrun Error bits.
     rts
 
+; 8377
 osword_81_07:
-_8377:
+get_duart_input_ports:
     lda DUART_IP
     sta $3f16
     inc $3f15
@@ -772,7 +779,7 @@ _8393:
     pha
     lda $f1
     pha
-    jsr _83f3
+    jsr read_duart_a_status
     lda $3f16
     and #$01
     bne _83a9
@@ -818,15 +825,17 @@ _83e6:
 _83f0:
     jmp (EVNTV)
 
+; 83f3
 osword_81_0a:
-_83f3:
+read_duart_a_status:
     lda DUART_SRA           ; Read from DUART status register A.
     sta $3f16
     inc $3f15
     rts
 
+; 83fd
 osword_81_0b:
-_83fd:
+write_duart_a:
     lda $3f13
     sta DUART_THRA          ; Write to channel A.
     lda $3f06
@@ -956,45 +965,52 @@ _84e3:
 _84eb:
     rts
 
+; 84ec
 osword_81_10:
-_84ec:
+enable_duart_b_tx:
     lda #$04
     sta DUART_CRB
     rts
 
+; 84f2
 osword_81_11:
-_84f2:
+disable_duart_b_tx:
     lda #$08
     sta DUART_CRB
     rts
 
+; 84f8
 osword_81_12:
-_84f8:
+enable_duart_b_rx:
     lda #$01
     sta DUART_CRB
     rts
 
+; 84fe
 osword_81_13:
-_84fe:
+disable_duart_b_rx:
     lda #$02
     sta DUART_CRB
     rts
 
+; 8504
 osword_81_14:
-_8504:
-    lda #$30
+reset_duart_b_tx:
+    lda #$30            ; Reset channel B transmitter
     sta DUART_CRB
     rts
 
+; 850a
 osword_81_15:
-_850a:
-    lda #$20
+reset_duart_b_rx:
+    lda #$20            ; Reset channel B receiver
     sta DUART_CRB
     rts
 
+; 8510
 osword_81_16:
-_8510:
-    lda #$40
+reset_duart_b_error:
+    lda #$40            ; Reset channel B error status
     sta DUART_CRB
     rts
 
@@ -1012,7 +1028,7 @@ _8528:
     rts
 
 osword_81_18:
-    jsr _8543
+    jsr read_duart_b
     lda $3f16
     and #$01
     bne _8539
@@ -1025,14 +1041,16 @@ _853f:
     inc $3f15
     rts
 
+; 8543
 osword_81_19:
-_8543:
+read_duart_b:
     lda DUART_SRB
     sta $3f16
     inc $3f15
     rts
 
 osword_81_1a:
+write_duart_b:
     lda $3f13
     sta DUART_THRB
     rts
@@ -1221,11 +1239,13 @@ _8682:
     rts
 
 osword_81_21:
+write_via2_ra:
     lda $3f13
     sta VIA2_RA
     rts
 
 osword_81_22:
+read_via2_rb:
     lda VIA2_RB
     and #$81
     sta $3f16
@@ -1329,8 +1349,9 @@ _875f:
     inc $3f15
     rts
 
+; 8768
 osword_81_25:
-_8768:
+setup_vias_and_duart:
     lda #$00
     sta DUART_ISR
     sta RAM_DUART_ISR
@@ -1346,12 +1367,12 @@ _8768:
     sta $3f00       ; See _809e for where this is used.
     lda #$81
     sta $3f01
-    jsr _8365
-    jsr _836b
-    jsr _8371
-    jsr _8504
-    jsr _850a
-    jsr _8510
+    jsr reset_duart_a_tx
+    jsr reset_duart_a_rx
+    jsr reset_duart_a_error
+    jsr reset_duart_b_tx
+    jsr reset_duart_b_rx
+    jsr reset_duart_b_error
     lda $f0         ; Save the X value passed to the OSWORD call.
     pha
     lda $f1         ; Save the Y value passed to the OSWORD call.
@@ -1408,10 +1429,10 @@ _8768:
     sta VIA2_PCR        ; CA2 pulse output mode, CA1 positive active edge, p391.
     lda #$00
     sta $f0
-    jsr _82d4
+    jsr osbyte_41
     lda #$00
     sta $f0
-    jsr _82e1
+    jsr read_via2_b
     jsr _8ad4
     bcc _8842
     lda #$01

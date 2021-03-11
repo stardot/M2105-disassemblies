@@ -7,6 +7,12 @@
 ; T2CH  T2 high-order counter
 
 ; VIA1 is used to communicate with the speech system.
+; In IC24-SK1, a routine called from OSWORD &81 $25 configures
+;   register A as an input initially, but
+;       as an output when sending a speech command
+;       as an input when getting a byte from the speech processor
+;   register B as input/output?
+
 .alias VIA1_RB $fc60
 .alias VIA1_RA $fc61
 .alias VIA1_DDRB $fc62
@@ -14,6 +20,11 @@
 .alias VIA1_PCR $fc6c
 .alias VIA1_IFR $fc6d
 .alias VIA1_IER $fc6e
+
+; VIA2 is used to write to the printer
+; In IC24-SK1, OSWORD &81 $25 configures
+;   register A as an output
+;   register B as input/output
 
 .alias VIA2_RB $fc70
 .alias VIA2_RA $fc71
