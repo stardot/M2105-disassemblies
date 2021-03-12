@@ -20,8 +20,10 @@
 ; $fc60: 60 61 62 63                         6c 6d 6e       (VIA)
 ; $fc70: 70 71 72 73             78 79    7b 7c 7d 7e       (VIA)
 ; $fcf0:                                              ff
-; $fd00: 00 01 02 03 04 05 06 07
-; $fd10:                   16 17 18 19
+; $fd00: 00 01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f
+; $fd10: 10 11 12 13 14 15 16 17 18 19 1a 1b 1c
+; $fd50:          53 54 55 56 57 58 59 5a 5b 5c 5d 5e 5f
+; $fd60: 60 61 62
 ; $fde0:                            e9 ea eb ec ed    ef
 ; $fdf0: f0 f1
 
@@ -1774,19 +1776,22 @@ _8a78:
     php
     sei
     pha             ; Preserve A
-    ldy #$01
+    ldy #$01        ; Y=1
     lda ($f0),y     ; Load high byte of channel number
     cmp #$ff        ; Check for certain negative channel numbers
     bne _8aca       ; Exit if not found
     pla             ; Discard stacked A
-    iny
+
+    iny             ; Y=2
     lda ($f0),y
     tax             ; X=low byte of volume
     pha             ; Push byte
-    iny
+
+    iny             ; Y=3
     lda ($f0),y
     pha             ; Push high byte of volume
-    ldy #$00
+
+    ldy #$00        ; Y=0
     lda ($f0),y     ; Load low byte of channel
     cmp #$f0        ; Check for negative numbers below -16
     bcc _8ab5       ; and treat them differently
@@ -1795,19 +1800,19 @@ _8a78:
     cmp $3f31
     beq _8aa0
     bcc _8aa7
-    bcs _8acd
+    bcs _8acd       ; Exit
 _8aa0:
     cpx $3f30       ; Check low byte of volume
     beq _8aa7
-    bcs _8acd
+    bcs _8acd       ; Exit
 _8aa7:
     cmp $3f2f
     beq _8ab0
-    bcc _8acd
+    bcc _8acd       ; Exit
     bcs _8ab5
 _8ab0:
     cpx $3f2e
-    bcc _8acd
+    bcc _8acd       ; Exit
 _8ab5:
     lda ($f0),y
     jsr insert_value_speech_buffer
@@ -1820,7 +1825,6 @@ _8ab5:
     clc
     lda #$00
     rts
-
 _8aca:
     pla
     plp
@@ -4035,7 +4039,7 @@ _9c50:
     lda #$30
     ldx #$10
 _9c65:
-    sta $fd52,x
+    sta $fd52,x     ; Write to $fd53-62
     dex
     bne _9c65
     jsr _a261
@@ -4498,8 +4502,8 @@ _9f97:              ; In look-up tables at _a021 and _a026.
     ldx #$00
 *
     lda $fd07,x                 ; Read a digit or valid character
-    jsr encode_number_as_words  ; Convert to a word number and encode it, X++
-    bne -
+    jsr encode_number_as_words  ; Convert to a word number and encode it,
+    bne -                       ; increments X until X=$16 ($fd07-1c)
 
     lda #$d2        ; Speech word number $d2 -> $f1 (PLEASE)
     sta ($37),y
@@ -4520,7 +4524,7 @@ _9fbf:              ; In look-up tables at _a021 and _a026.
                     ; Called from 9f8b when $04cc contains 2
     ldx #$00
 _9fc1:
-    lda $fd27,x
+    lda $fd27,x                 ; As above but with $fd27-3c
     jsr encode_number_as_words
     bne _9fc1
     rts
@@ -4833,7 +4837,7 @@ _a1f7:
 _a1fa:
     dex
     bmi _a205
-    lda $fd01,x
+    lda $fd01,x         ; Read from $fd01-05
     cmp _a206,x
     bcc _a1fa
 _a205:
