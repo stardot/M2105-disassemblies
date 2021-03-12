@@ -78,8 +78,8 @@
 ;
 ; $fd00:    01 02 03 04 05 06
 ; $fd10:                                        1d
-; $fd50:                                     5c
-; $fd60:          63
+; $fd50:                                        5d 5e 5f
+; $fd60: 60 61 62 63
 ; $fde0:                               ea eb ec ed    ef
 ; $fdf0: 00 01
 
@@ -7308,7 +7308,7 @@ _bd10:
     jsr _b958
     ldx #$06
 _bd15:
-    ldy $fd5c,x
+    ldy $fd5c,x     ; Read from $fd5d-63
     jsr _bd46
     dex
     bne _bd15
