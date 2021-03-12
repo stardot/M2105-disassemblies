@@ -1632,12 +1632,12 @@ _898b:
     pla
     tay
     lda ($f0),y     ; Load a low byte from the address passed as YYXX to OSWORD
-    sta $3f1a
+    sta $3f1a       ; Store in parameter 2 in the OSWORD &07 parameter block
     iny
     dec $3f12       ; Decrement the remaining size of the speech buffer?
     beq _89d4
     lda ($f0),y     ; Load a high byte from the address passed as YYXX to OSWORD
-    sta $3f1b
+    sta $3f1b       ; Store in parameter 2 in the OSWORD &07 parameter block
     lda $f0
     pha             ; Save the contents of $f0 and $f1 on the stack
     lda $f1         ; before performing a nested OSWORD call
@@ -1784,12 +1784,12 @@ _8a78:
 
     iny             ; Y=2
     lda ($f0),y
-    tax             ; X=low byte of volume
+    tax             ; X=low byte of parameter 2
     pha             ; Push byte
 
     iny             ; Y=3
     lda ($f0),y
-    pha             ; Push high byte of volume
+    pha             ; Push high byte of parameter 2
 
     ldy #$00        ; Y=0
     lda ($f0),y     ; Load low byte of channel
@@ -1802,7 +1802,7 @@ _8a78:
     bcc _8aa7
     bcs _8acd       ; Exit
 _8aa0:
-    cpx $3f30       ; Check low byte of volume
+    cpx $3f30       ; Check low byte of parameter 2
     beq _8aa7
     bcs _8acd       ; Exit
 _8aa7:
