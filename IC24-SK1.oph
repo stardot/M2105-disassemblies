@@ -8,13 +8,19 @@
 
 .include "MOS.oph"
 
+; Voice response
+; $37d9 Voice response option (when in main RAM)
+; $fd07 Telephone number of M2105
+; $0951 Words for time in message
+; $fd27 Telephone number for the caller to try
+
 ; Note: Uses these addresses in pages &FC and &FD:
 ;
 ; $fc50: 50 51 52 53 54 55 56 57 58 59 5a 5b    5d 5e 5f
 ; $fc60: 60 61 62 63                         6c 6d 6e       (VIA)
 ; $fc70: 70 71 72 73             78 79    7b 7c 7d 7e       (VIA)
 ; $fcf0:                                              ff
-; $fd00: 00 01 02 03 04 05 06
+; $fd00: 00 01 02 03 04 05 06 07
 ; $fd10:                   16 17 18 19
 ; $fde0:                            e9 ea eb ec ed    ef
 ; $fdf0: f0 f1
@@ -1594,21 +1600,21 @@ _8954:
     sta VIA1_RB
     rts
 
-osword_81_2b:
+osword_81_2b:       ; Prepare speech
     lda #$00
-    sta $3f17
+    sta $3f17       ; Used when reading the speech buffer status
     lda $3f12
-    sta $3f16
+    sta $3f16       ; Number of spaces remaining in the speech buffer?
     beq _89dc
     lda #$ff
-    sta $3f18
+    sta $3f18       ; Channel low byte
     lda $3f28
     ora #$f0
-    sta $3f19
+    sta $3f19       ; Channel high byte?
     lda #$00
     ldx #$04
 _8976:
-    sta $3f1b,x
+    sta $3f1b,x     ; Write $3f1c-1f
     dex
     bne _8976
     ldy #$05
@@ -1623,29 +1629,29 @@ _897e:
 _898b:
     pla
     tay
-    lda ($f0),y
+    lda ($f0),y     ; Load a low byte from the address passed as YYXX to OSWORD
     sta $3f1a
     iny
-    dec $3f12
+    dec $3f12       ; Decrement the remaining size of the speech buffer?
     beq _89d4
-    lda ($f0),y
+    lda ($f0),y     ; Load a high byte from the address passed as YYXX to OSWORD
     sta $3f1b
     lda $f0
-    pha
-    lda $f1
+    pha             ; Save the contents of $f0 and $f1 on the stack
+    lda $f1         ; before performing a nested OSWORD call
     pha
     tya
     pha
     ldx #$18
-    stx $f0
+    stx $f0         ; Pass X to OSWORD to refer to the parameter block
     ldy #$3f
-    sty $f1
+    sty $f1         ; Pass Y to OSWORD to refer to the parameter block
     lda #$07
-    sta $ef
-    jsr _8a78
+    sta $ef         ; Pass A to OSWORD
+    jsr _8a78       ; Call OSWORD &07
     pla
     tay
-    pla
+    pla             ; Restore this call's $f0 and $f1 values
     sta $f1
     pla
     sta $f0
@@ -4138,10 +4144,10 @@ _9d31:
     jsr _9d26
     ldx #$00
 _9d36:
-    lda $fd00,x
+    lda $fd00,x     ; Copy configuration from paged RAM to main RAM
     sta $37d4,x
     inx
-    cpx #$1d
+    cpx #$1d        ; Up to and including $fd1c and $37f0
     bcc _9d36
     jmp _9d2b
 _9d44:
@@ -4443,129 +4449,150 @@ _9f5a:
 _9f5e:
     lda #$0b
     sta $37
-    lda #$09
+    lda #$09        ; Store $090b in $37,$38
     sta $38
     ldy #$00
-    lda #$00
+    lda #$00        ; Initialise the message part
     sta $04cc
-    ldx $37d9
-    lda _a02b,x
-_9f73:
-    beq _9f85
-    lsr
-    pha
-    bcs _9f7b
-    bne _9f7e
+    ldx $37d9       ; Load the voice message number (User Guide, p54)
+    lda _a02b,x     ; Use the message number to determine which sets of words
+                    ; to play, loading a bitstream
+; 9f73
+voice_response_part_loop:
+    beq _9f85       ; Stop playing messages if there are no more non-zero bits
+    lsr             ; Shift out the rightmost bit
+    pha             ; Store the bitstream
+    bcs _9f7b       ; If the lowest bit is set then play the current part
+    bne _9f7e       ; otherwise skip it
 _9f7b:
-    jsr _9f8b
+    jsr play_voice_response_part
 _9f7e:
-    inc $04cc
-    pla
-    jmp _9f73
+    inc $04cc       ; Set the voice message number to perhps play the next part
+    pla             ; Recover the bitstream
+    jmp voice_response_part_loop
 _9f85:
     sta ($37),y
     iny
     sta ($37),y
     rts
 
-_9f8b:
+; 9f8b
+play_voice_response_part:
     ldx $04cc
     lda _a021,x     ; Load address of code from two spans of data.
-    pha             ; These refer to addresses just before routines in the.
+    pha             ; These refer to addresses just before routines in the
     lda _a026,x     ; following section of code.
     pha
     rts
+
 _9f97:              ; In look-up tables at _a021 and _a026.
+                    ; Called from 9f8b when $04cc contains 0
     ldx #$00
-_9f99:
-    lda _a030,x
+*
+    lda _a030,x     ; Read word numbers for speech, "This is a computer..."
     sta ($37),y
     iny
     inx
-    cpx #$0c
-    bne _9f99
+    cpx #$0c        ; Only 12 words in the speech
+    bne -
     ldx #$00
-_9fa6:
-    lda $fd07,x
-    jsr _9fed
-    bne _9fa6
-    lda #$d2
+*
+    lda $fd07,x                 ; Read a digit or valid character
+    jsr encode_number_as_words  ; Convert to a word number and encode it, X++
+    bne -
+
+    lda #$d2        ; Speech word number $d2 -> $f1 (PLEASE)
     sta ($37),y
     iny
-    lda #$f1
+    lda #$f1        ; Speech word number $f1 -> $110 (TRY)
     sta ($37),y
     iny
     rts
+
 _9fb9:              ; In look-up tables at _a021 and _a026.
-    lda #$83
+                    ; Called from 9f8b when $04cc contains 1
+    lda #$83        ; Speech word number $83 -> $a2 (AGAIN)
     sta ($37),y
     iny
     rts
 
 _9fbf:              ; In look-up tables at _a021 and _a026.
+                    ; Called from 9f8b when $04cc contains 2
     ldx #$00
 _9fc1:
     lda $fd27,x
-    jsr _9fed
+    jsr encode_number_as_words
     bne _9fc1
     rts
+
 _9fca:              ; In look-up tables at _a021 and _a026.
-    lda #$82
+                    ; Called from 9f8b when $04cc contains 3
+    lda #$82        ; Speech word number $82 -> $a1 (AFTER)
     sta ($37),y
     iny
     ldx #$00
 _9fd1:
     lda $0951,x
-    beq _9fd9
+    beq +
     sta ($37),y
     iny
-_9fd9:
+*
     inx
-    cpx #$08
+    cpx #$08        ; Include at most 8 words
     bne _9fd1
     rts
 
 _9fdf:              ; In look-up tables at _a021 and _a026.
+                    ; Called from 9f8b when $04cc contains 4
     ldx #$00
-_9fe1:
-    lda _a03c,x
+*
+    lda _a03c,x     ; Read word numbers for speech, "Thank you"
     sta ($37),y
     iny
     inx
     cpx #$08
-    bne _9fe1
+    bne -
     rts
 
-_9fed:
-    cmp #$20
+; 9fed
+encode_number_as_words: ; A=ASCII value of a digit or valid telephone character
+
+    cmp #$20        ; Skip spaces
     beq _a000
-    sty $04c7
+    sty $04c7       ; Save Y across call that corrupts it
     jsr _a012
-    ldy $04c7
+    ldy $04c7       ; Restore Y
     sec
-    sbc #$1f
-    sta ($37),y
+    sbc #$1f        ; Subtract the offset to encode the number as a byte
+    sta ($37),y     ; Store an encoded number
     iny
 _a000:
-    inx
-    cpx #$16
+    inx             ; Increase X up to $16
+    cpx #$16        ; Set Z when X=$16
     rts
 
+; These two arrays map characters to word numbers, apart from the leading zero
+; bytes:
+;       ;       -> OR (237)
+;       ( and ) -> delay (32)
+;       x and X -> X (88)
+;       0       -> O (230)
 _a004:
-.byte $00,$3b,$28,$29,$78,$58,$30
+.byte $00,";()xX0"
 _a00b:
 .byte $00,$ed,$20,$20,$58,$58,$e6
 
-_a012:
+; Maps characters to speech words in the above arrays:
+_a012:              ; A=ASCII value
     ldy #$06
-_a014:
-    cmp _a004,y
+*
+    cmp _a004,y     ; Equal to character in the above array?
     beq _a01d
     dey
-    bne _a014
-    rts
+    bne -
+    rts             ; Return if no matches found
 _a01d:
-    lda _a00b,y
+    lda _a00b,y     ; Load the corresponding speech word number for encoding
     rts
 
 
@@ -4573,10 +4600,18 @@ _a021:
 .byte >[_9f97 - 1],>[_9fb9 - 1],>[_9fbf - 1],>[_9fca - 1],>[_9fdf - 1]
 _a026:
 .byte <[_9f97 - 1],<[_9fb9 - 1],<[_9fbf - 1],<[_9fca - 1],<[_9fdf - 1]
+; Voice response bitstreams for each voice response option (User Guide, p78)
 _a02b:
 .byte $00,$13,$1b,$15,$1d
+
+; Numbers for words used in the voice response, with each value 0x1f less than
+; the value to be used. The routine at _a459 adds this value to these numbers
+; to create 9-bit values as required. $61 becomes $80, which is a delay.
+; THIS ($10e) IS ($d1) A ($9f) COMPUTER ($b3), ($80 $80) PLEASE ($f1)
+; [H]OLD ($ea) ON ($eb)
 _a030:
 .byte $ef,$b2,$80,$94,$61,$61,$d2,$cb,$cc,$00,$ef,$b2
+; THANK ($109) [YO]U ($113)
 _a03c:
 .byte $61,$61,$ea,$f4,$61,$61,$61,$61
 
@@ -5022,7 +5057,6 @@ _a42a:
     jsr _a466
     bcs _a430
     rts
-
 _a430:
     ldx $380b
     lda $090b,x     ; Page &09 can be used as an RS423 buffer.
@@ -5035,30 +5069,29 @@ _a430:
 _a443:
     sec
     rts
-
 _a445:
     inc $380b
     cmp #$0e
     bne _a453
-    lda #$61
+    lda #$61        ; $61 -> $80 (pause)
     jsr _a459
-    lda #$61
+    lda #$61        ; $61 -> $80 (pause)
 _a453:
     jsr _a459
     jmp _a42a
 _a459:
     clc
-    adc #$1f
-    tax
+    adc #$1f        ; Add an offset to convert the byte into a word number
+    tax             ; Store low byte in X
     lda #$00
-    rol
-    tay
-    lda #$2b
-    jmp $3354
+    rol             ; Shift the carry flag into the high byte
+    tay             ; and store it in Y
+    lda #$2b        ; Command $2b
+    jmp $3354       ; Call OSWORD &81
 
 _a466:
-    lda #$2f
-    jsr $3354
+    lda #$2f        ; Command $2f (get speech buffer status)
+    jsr $3354       ; Call OSWORD &81
     lda $340e
     tax
     sec
@@ -5067,8 +5100,8 @@ _a466:
     rts
 
 _a475:
-    lda #$2a
-    jmp $3354
+    lda #$2a        ; Command $2a
+    jmp $3354       ; Call OSWORD &81
     jsr _be19
     lda $3748
     bne _a48a
@@ -5162,10 +5195,10 @@ _a521:
     bne _a542
     jsr _bd2a
     bcc _a541
-    lda #$14
-    jsr $3354
-    lda #$15
-    jsr $3354
+    lda #$14            ; Command $14
+    jsr $3354           ; OSWORD &81
+    lda #$15            ; Command $14
+    jsr $3354           ; OSWORD &81
     lda #$06
     sta $37fb
     lda #$06
@@ -6227,7 +6260,6 @@ _acde:
     sta $3748
     jsr _ae5b
     jmp _ae54
-
 _acef:
     cmp #$a1
     beq _acf6
@@ -6265,7 +6297,6 @@ _ad35:
     beq _ad46
     jsr _bdbb
     jmp _ad46
-
 _ad43:
     jsr _a42a
 _ad46:
@@ -7715,17 +7746,17 @@ _b762:
     rts
 
 _b782:
-    lda #$1c
+    lda #$1c            ; Command $1c
     ldx #$03
-    jsr $3354
+    jsr $3354           ; OSWORD &81
     lda #$2e
     jsr $3354
     jsr _bd13
     jsr _bdc0
-    lda #$14
-    jsr $3354
-    lda #$15
-    jsr $3354
+    lda #$14            ; Command $14 (Reset DUART channel B transmitter)
+    jsr $3354           ; OSWORD &81
+    lda #$15            ; Command $15 (Reset DUART channel B receiver)
+    jsr $3354           ; OSWORD &81
     lda #$00
     sta $3747
     sta $3421

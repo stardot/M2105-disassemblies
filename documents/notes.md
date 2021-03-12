@@ -64,6 +64,26 @@ Assuming 32K RAM, paged from 0 to $7f, it's strange to see a value of $80 being
 written to the paging register. Perhaps paging is from 1 to $80, or perhaps
 there is more RAM than expected.
 
+It's interesting to note that the addresses in page FD used by the software are
+generally in the ranges $fd00-1f, $fd50-6f and $fde0-ff.
+
+Looking at the third digit of each address (0, 1, 5, 6, e, f):
+
+    0000
+    0001
+    0101
+    0110
+    1110
+    1111
+
+If bit 3 is set, bits 2 and 1 are also set.
+If bit 1 is set, bit 2 is also set.
+
+So, we do not need an address line for bit 2.
+
+The routine at $9d31 in IC24-SK1 copies data from paged RAM to main RAM,
+copying $fd00-$fd1c to $37d4-$37f0.
+
 ## Custom OSBYTE and OSWORD calls
 
 IC24-SK1 provides a handler for unknown OSBYTE and OSWORD calls. These

@@ -4301,7 +4301,7 @@ _a168:
     lda #$80
     sta PAGING_JIM
     ldx #$0a
-    ldy #$fd
+    ldy #$fd        ; $fd0a
     jsr _a1f6
     lda #$45        ; OSBYTE &45 - see IC24-SK1
     jsr OSBYTE

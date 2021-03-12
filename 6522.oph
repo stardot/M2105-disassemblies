@@ -21,7 +21,7 @@
 .alias VIA1_IFR $fc6d
 .alias VIA1_IER $fc6e
 
-; VIA2 is used to write to the printer
+; VIA2 is used to write to the printer and possibly something else
 ; In IC24-SK1, OSWORD &81 $25 configures
 ;   register A as an output
 ;   register B as input/output
