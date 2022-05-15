@@ -19,6 +19,9 @@
 ; The addresses are derived from table 1 in the SCN2681 datasheet and knowing
 ; that the DUART is mapped into $fc50.
 
+; Channel A is used to provide serial communications.
+; Channel B is used to access the AM7910 modem.
+
 .alias DUART_MRA $fc50
 .alias DUART_MR1A $fc50
 .alias DUART_MR2A $fc50

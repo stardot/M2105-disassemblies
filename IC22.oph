@@ -1117,27 +1117,27 @@ _8719:
     lda #$04            ; Offset into key array
     ldx #<[_8771 - 1]
     ldy #>[_8771 - 1]   ; Key array at $8770, indexed from 1
-    jsr _873c
+    jsr scan_keyboard
     php
     ldx #$00
     plp
-    bne _8729
+    bne +
     dex
-_8729:
+*
     stx $0907
     rts
 
 _872d:
     lda #$03            ; Offset into key array
     ldx #<[_8775 - 1]
-    ldy #>[_8775 - 1]    ; Key array at $8774, indexed from 1
-    jsr _873c
+    ldy #>[_8775 - 1]   ; Key array at $8774, indexed from 1
+    jsr scan_keyboard
     bne _873b
     dec $fded
 _873b:
     rts
 
-_873c:
+scan_keyboard:      ; YX=array address, A=index
     stx $1e
     sty $1f
     sta $058a       ; Store the index into the key array
@@ -1152,7 +1152,7 @@ _8748:
     bpl _8763       ; Key not pressed (top bit not set)
     dec $0589       ; Reduce the counter
     ldy $058a       ; Load the index into the key array
-    beq _8763       ; If zero
+    beq _8763       ; If zero, skip the key check
     pla             ; Recover the key to be checked for
     pha
     cmp ($1e),y     ; Check if the key matches the one in the array

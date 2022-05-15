@@ -534,6 +534,9 @@ _826d:
 ; From http://beebwiki.mdfs.net/OSBYTE_%2607
 ; X     1     2       3       4       5       6       7       8
 ; baud  75    150     300     1200    2400    4800    9600    19200
+; From M2105 Product Specification, p13:
+; X     9     10      11
+; baud  110   600     1800
 set_recv_baud_rate:
 _826e:
     ldx $3f07
@@ -561,6 +564,9 @@ _827b:
 ; From http://beebwiki.mdfs.net/OSBYTE_%2608
 ; X     1     2       3       4       5       6       7       8
 ; baud  75    150     300     1200    2400    4800    9600    19200
+; From M2105 Product Specification, p13:
+; X     9     10      11
+; baud  110   600     1800
 set_send_baud_rate:
 _8298:
     ldx $3f08
@@ -595,7 +601,7 @@ _82c1: .byte $06,$00,$03,$04,$06, $08, $09, $0b, $0c,  $01, $05, $0a
 ; OSBYTE &40
 
 ; 82cd
-osbyte_40:
+osbyte_40:          ; Read modem handshake (M2105 Product Spec, p19)
     ldx DUART_IP    ; Read the input ports.
     stx $f0         ; Make the OSBYTE call return the value in X.
     clc
@@ -603,7 +609,8 @@ osbyte_40:
 
 ; OSBYTE &41
 
-osbyte_41:
+osbyte_41:          ; Select RAM page (M2105 Product Spec, p35)
+                    ; X=0-$ff
     ldx $ee         ; 1MHz bus page number (EAUG, p188)
     lda $f0         ; X value passed to OSBYTE
     stx $f0         ; Store the page number in $f0 to return it from OSBYTE in X.
@@ -614,6 +621,7 @@ osbyte_41:
 
 ; OSBYTE &42
 ; Read from port B of VIA 2
+; Mentioned in M2105 Product Spec, p35, but apparently not applicable here.
 
 ; 82e1
 osbyte_42:
@@ -761,14 +769,14 @@ reset_duart_a_error:
     rts
 
 ; 8377
-osword_81_07:
+osword_81_07:           ; Reset RS423 handshake
 get_duart_input_ports:
     lda DUART_IP
     sta $3f16
     inc $3f15
     rts
 
-osword_81_08:
+osword_81_08:           ; Write RS423 handshake
 _8381:
     lda $3f13
     and #$85
@@ -781,7 +789,7 @@ _838f:
 _8392:
     rts
 
-osword_81_09:
+osword_81_09:               ; Read byte from RS423 receive holding register
 _8393:
     lda $f0
     pha
@@ -855,7 +863,7 @@ _8410:
     rts
 
 
-osword_81_0c:
+osword_81_0c:               ; Enable RS423 interrupts
 _8411:
     lda $3f13
     tax
@@ -889,7 +897,7 @@ _8446:
     sta RAM_DUART_ISR
     rts
 
-osword_81_0d:
+osword_81_0d:           ; Disable RS423 interrupts
 _8452:
     lda $3f13
     and #$03
@@ -899,8 +907,8 @@ _8452:
     sta RAM_DUART_ISR
     rts
 
-osword_81_0e:   ; This is similar to osword_81_20
-duart_init_mra:
+osword_81_0e:       ; Set RS423 data word configuration (M2105 Product Spec, p14)
+duart_init_mra:     ; This is similar to osword_81_20
 _8463:
     jsr _8a3b
     jsr duart_reset_mra
@@ -952,7 +960,7 @@ _84b9:
 _84bd:
 .byte $03,$01,$02,$03
 
-osword_81_0f:
+osword_81_0f:       ; Set RS423 handshake level (M2105 Product Spec, p16)
 _84c1:
     lda $3f06
     sta $3f16
@@ -974,55 +982,55 @@ _84eb:
     rts
 
 ; 84ec
-osword_81_10:
+osword_81_10:       ; Enable modem transmitter (M2105 Product Spec, p17)
 enable_duart_b_tx:
     lda #$04
     sta DUART_CRB
     rts
 
 ; 84f2
-osword_81_11:
+osword_81_11:       ; Disable modem transmitter (M2105 Product Spec, p17)
 disable_duart_b_tx:
     lda #$08
     sta DUART_CRB
     rts
 
 ; 84f8
-osword_81_12:
+osword_81_12:       ; Enable modem receiver (M2105 Product Spec, p17)
 enable_duart_b_rx:
     lda #$01
     sta DUART_CRB
     rts
 
 ; 84fe
-osword_81_13:
+osword_81_13:       ; Disable modem receiver (M2105 Product Spec, p17)
 disable_duart_b_rx:
     lda #$02
     sta DUART_CRB
     rts
 
 ; 8504
-osword_81_14:
+osword_81_14:       ; Reset modem transmitter (M2105 Product Spec, p17)
 reset_duart_b_tx:
-    lda #$30            ; Reset channel B transmitter
+    lda #$30        ; Reset channel B transmitter
     sta DUART_CRB
     rts
 
 ; 850a
-osword_81_15:
+osword_81_15:       ; Reset modem receiver (M2105 Product Spec, p18)
 reset_duart_b_rx:
-    lda #$20            ; Reset channel B receiver
+    lda #$20        ; Reset channel B receiver
     sta DUART_CRB
     rts
 
 ; 8510
-osword_81_16:
+osword_81_16:           ; Reset modem error status (M2105 Product Spec, p19)
 reset_duart_b_error:
     lda #$40            ; Reset channel B error status
     sta DUART_CRB
     rts
 
-osword_81_17:
+osword_81_17:           ; Write modem handshake (M2105 Product Spec, p19)
 _8516:
     lda $3f13
     and #$82
@@ -1035,7 +1043,7 @@ _8525:
 _8528:
     rts
 
-osword_81_18:
+osword_81_18:           ; Read byte from modem receive holding register (M2105 Product Spec, p20)
     jsr read_duart_b
     lda $3f16
     and #$01
@@ -1050,20 +1058,20 @@ _853f:
     rts
 
 ; 8543
-osword_81_19:
+osword_81_19:       ; Read modem status (M2105 Product Spec, p21)
 read_duart_b:
     lda DUART_SRB
     sta $3f16
     inc $3f15
     rts
 
-osword_81_1a:
+osword_81_1a:       ; Write byte to modem transmit holding register (M2105 Product Spec, p21)
 write_duart_b:
     lda $3f13
     sta DUART_THRB
     rts
 
-osword_81_1b:
+osword_81_1b:       ; Enable modem interrupts (M2105 Product Spec, p22)
     lda #$00
     sta $80
     lda #$01
@@ -1126,7 +1134,7 @@ _85c8:
     sta RAM_DUART_ACR
     rts
 
-osword_81_1c:
+osword_81_1c:       ; Disable modem interrupts (M2105 Product Spec, p23)
 _85d2:
     lda $3f13
     asl
@@ -1169,14 +1177,14 @@ _8614:
     sta RAM_DUART_ACR
     rts
 
-osword_81_1d:
+osword_81_1d:       ; Start ring counter (M2105 Product Spec, p23)
     lda $3f13
     sta VIA2_T2CL
     lda $3f14
     sta VIA2_T2CH
     rts
 
-osword_81_1e:
+osword_81_1e:       ; Read ring counter (M2105 Product Spec, p23)
     lda VIA2_T2CL
     ldx VIA2_T2CH
     sta $3f16
@@ -1194,7 +1202,7 @@ _864c:
     sta $3f15
     rts
 
-osword_81_1f:
+osword_81_1f:       ; Set modem operating mode (M2105 Product Spec, p24)
 _8652:
     jsr _8a45
     lda $3f13
@@ -1225,8 +1233,8 @@ _8676:
 ; Set 1:    50  110 200 300 600 1200 2400 baud
 ; Set 2:    75  110 150 300 600 1200 2400 baud
 
-osword_81_20:   ; This is similar to osword_81_0e
-duart_init_mrb:
+osword_81_20:   ; Set modem data word configuration (M2105 Product Spec, p25)
+duart_init_mrb: ; This is similar to osword_81_0e
 _8682:
     jsr _8a4f
     jsr duart_reset_mrb
@@ -1246,13 +1254,13 @@ _8682:
     sta DUART_MRB       ; Write the masked value of MR2B.
     rts
 
-osword_81_21:
+osword_81_21:       ; Write byte to Centronics port (M2105 Product Spec, p27)
 write_via2_ra:
     lda $3f13
     sta VIA2_RA
     rts
 
-osword_81_22:
+osword_81_22:       ; Read Centronics port status (M2105 Product Spec, p27)
 read_via2_rb:
     lda VIA2_RB
     and #$81
@@ -1260,7 +1268,7 @@ read_via2_rb:
     inc $3f15
     rts
 
-osword_81_23:
+osword_81_23:       ; Enable/Disable Centronics interrupts (M2105 Product Spec, p27)
     lda $3f13
     and #$83
     bpl _86ef
@@ -1299,7 +1307,7 @@ _86ff:
 _8702:
     rts
 
-osword_81_24:
+osword_81_24:       ; Read interrupt status flags (M2105 Product Spec, p28)
     lda #$00
     sta $80
     lda DUART_ISR
@@ -1358,7 +1366,7 @@ _875f:
     rts
 
 ; 8768
-osword_81_25:
+osword_81_25:           ; Master reset (M2105 Product Spec, p29)
 setup_vias_and_duart:
     lda #$00
     sta DUART_IMR
@@ -1475,13 +1483,13 @@ _8852:
     sta $f0
     rts
 
-osword_81_26:
+osword_81_26:       ; Read start up options (M2105 Product Spec, p30)
     lda PAGING_JIM
     sta $3f16
     inc $3f15
     rts
 
-osword_81_27:
+osword_81_27:       ; Seize telephone line (M2105 Product Spec, p31)
 _8881:
     lda VIA2_RB
     ora #$04
@@ -1489,7 +1497,7 @@ _8881:
     sta VIA2_RB
     rts
 
-osword_81_28:
+osword_81_28:       ; Hang up telephone line (M2105 Product Spec, p31)
 _888c:
     lda #$80
     sta DUART_STOP_CC
@@ -1498,7 +1506,7 @@ _888c:
     sta VIA2_RB
     rts
 
-osword_81_29:
+osword_81_29:       ; Dial a digit string (M2105 Product Spec, p31)
     lda $3f10
     bne _88cf
     lda $3f12
@@ -1558,7 +1566,8 @@ _8905:
     tay
     rts
 
-osword_81_2a:
+osword_81_2a:       ; Turn PSTN line monitor speaker on/off
+                    ; (M2105 Product Spec, p32)
 _890e:
     lda VIA1_RB
     tax
@@ -1602,7 +1611,8 @@ _8954:
     sta VIA1_RB
     rts
 
-osword_81_2b:       ; Prepare speech
+osword_81_2b:       ; Generate a series of words/phrases from speech
+                    ; synthesiser (M2105 Product Spec, p33)
     lda #$00
     sta $3f17       ; Used when reading the speech buffer status
     lda $3f12
@@ -1678,7 +1688,8 @@ _89dc:
     sta $3f15
     rts
 
-osword_81_2c:
+osword_81_2c:                   ; Read Binary Version Number and Date
+                                ; (M2105 Product Spec, p29)
     lda [copyright_offset + 1]  ; $8008
     sta $3f16
     lda _8034
@@ -1687,7 +1698,7 @@ osword_81_2c:
     sta $3f15
     rts
 
-osword_81_2d:
+osword_81_2d:       ; Read PSTN line status (M2105 Product Spec, p32)
     lda VIA2_RB
     and #$04
     ldx $3f10
@@ -1698,7 +1709,7 @@ _8a00:
     inc $3f15
     rts
 
-osword_81_2e:
+osword_81_2e:           ; Abort dialling (M2105 Product Spec, p32)
 _8a07:
     jsr _888c
     lda #$08            ; Enable the CB2 active edge interrupt in VIA1.
@@ -1713,53 +1724,53 @@ _8a07:
     sta $3f10
     rts
 
-osword_81_2f:
+osword_81_2f:       ; Read speech synthesiser status (M2105 Product Spec, p34)
     jsr get_speech_buffer_status
     stx $3f16                       ; Number of spaces remaining
-    sty $3f17                       ; ?
+    sty $3f17                       ; (as a 16-bit number)
     lda #$02
     sta $3f15
     rts
 
-osword_81_30:
+osword_81_30:   ; Initiate modem auto-answer sequence (M2105 Product Spec, p25)
     lda #$80
-    sta DUART_START_CC      ; Start the DUART counter.
+    sta DUART_START_CC  ; Start the DUART counter.
     rts
 
-osword_81_31:
+osword_81_31:   ; Read RS423 data word configuration (M2105 Product Spec, p14)
 _8a3b:
     lda $3f05
     sta $3f16
     inc $3f15
     rts
 
-osword_81_32:
+osword_81_32:   ; Read modem operating mode (M2105 Product Spec, p24)
 _8a45:
     lda $3f0a
     sta $3f16
     inc $3f15
     rts
 
-osword_81_33:
+osword_81_33:   ; Read modem data word configuration (M2105 Product Spec, p25)
 _8a4f:
     lda $3f09
     sta $3f16
     inc $3f15
     rts
 
-osword_81_34:
+osword_81_34:       ; Send RS423 Break level (M2105 Product Spec, p16)
     lda $3f13
     and #$70        ; Retain the command but clear the transmitter bits.
     sta DUART_CRA
     rts
 
-osword_81_35:
+osword_81_35:       ; Send modem Break level (M2105 Product Spec, p25)
     lda $3f13
     and #$70        ; Retain the command but clear the transmitter bits.
     sta DUART_CRB
     rts
 
-osword_81_36:
+osword_81_36:       ; Reserved for system software (M2105 Product Spec, p38)
     lda #$00
     sta $3f16
     inc $3f15
