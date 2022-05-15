@@ -14,3 +14,10 @@ identified and labelled appropriately.
 One benefit of using annotated disassemblies is that any structure imposed onto
 them can be verified by reassembling the code. Ideally, the reassembled code
 should match the original ROM data exactly.
+
+## References
+
+Stardot forum threads:
+
+ * [BT M2105 Version](https://stardot.org.uk/forums/viewtopic.php?f=3&t=6184)
+ * [Circuit Diagrams and Paperwork for BT Merlin M2105 (Electron interface)](https://stardot.org.uk/forums/viewtopic.php?f=32&t=22054&p=313259)
