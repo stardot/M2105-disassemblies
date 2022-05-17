@@ -599,7 +599,7 @@ _82c1: .byte $06,$00,$03,$04,$06, $08, $09, $0b, $0c,  $01, $05, $0a
 ;                75  150 300 1200 2400 4800 9600 19200 110  600  1800 baud
 
 ; OSBYTE &40
-
+; https://beebwiki.mdfs.net/OSBYTE_%2640
 ; 82cd
 osbyte_40:          ; Read modem handshake (M2105 Product Spec, p19)
     ldx DUART_IP    ; Read the input ports.
@@ -769,7 +769,7 @@ reset_duart_a_error:
     rts
 
 ; 8377
-osword_81_07:           ; Reset RS423 handshake
+osword_81_07:           ; Read RS423 handshake
 get_duart_input_ports:
     lda DUART_IP
     sta $3f16

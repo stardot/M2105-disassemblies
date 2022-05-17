@@ -128,8 +128,8 @@ self_test:          ; 808d
     sta $340b
     lda #$06
     sta $3605
-    lda #$25        ; OSBYTE &82 $25 (setup) - see IC24-SK1
-    jsr [$3300 + _3354 - _3300]
+    lda #$25                        ; $25 (Master reset)
+    jsr [$3300 + _3354 - _3300]     ; Call OSWORD &81
     lda $340e
     sta $37d3
     lda #$42        ; OSBYTE &42 - see IC24-SK1
@@ -138,7 +138,7 @@ self_test:          ; 808d
     lda #$80
     sta PAGING_JIM
     cli
-    ldx #$2f        ; 8e86
+    ldx #$2f        ; Jump via the RAM routine to 8e86.
     jmp $3300
 
 _80dc:
@@ -409,12 +409,13 @@ _3327:                  ; 3327 when in RAM
     lda $fc
     rti
 
-_3354:
-    sta $340d
-    stx $3410
-    sty $3411
+ram_osword_81:
+_3354:              ; Call OSWORD &81
+    sta $340d       ; Set the subnumber
+    stx $3410       ; Parameters
+    sty $3411       ; ...
     lda #$81        ; Write to DUART channel A.
-    ldx #$0b        ; See IC24-SK1 osword_81_0b.
+    ldx #$0b        ; See IC24-SK1 service_08 and osword_table.
     ldy #$34        ; $340b
     jmp OSWORD
 
@@ -580,6 +581,7 @@ _839a:
 ; Called from the RAM code:
 ; 839b
 get_bank_for_routine:   ; X=index into RAM entry arrays across all ROMs
+                        ; Returns A=bank number.
     php
     cpx #$c1            ; Total number of routines (sum of rom_routine_count)
     bcc +
@@ -596,7 +598,7 @@ get_bank_for_routine:   ; X=index into RAM entry arrays across all ROMs
     sec
 *
     iny         ; Pre-increment Y so that the array below is zero-indexed
-    tax
+    tax         ; Keep the remaining offset in X.
     sbc rom_routine_count,y ; Subtract the number of routines in each ROM
     bcs -                   ; until the result is less than zero
     plp
@@ -607,6 +609,10 @@ get_bank_for_routine:   ; X=index into RAM entry arrays across all ROMs
 ; 83bc:
 rom_routine_count:
 .byte $47,$4c,$16,$18,$00,$00,$00,$00
+; IC22:     $0-$46
+; IC24-SK2: $47-$92
+; IC23:     $93-$a8
+; IC24-SK1: $a9-$c0
 
 ; 83c4:
 find_rom_banks:
@@ -618,7 +624,7 @@ find_rom_banks:
     bne -
     jmp [$3300 + _3366 - _3300]
 
-_83d1:             ; RAM entry point 29
+_83d1:             ; RAM entry point 29 ($1d)
     php
     sei
     stx $0514
@@ -707,7 +713,7 @@ _844a:             ; RAM entry point 34
     tax
     jmp _8419
 
-_8455:             ; RAM entry point 40
+_8455:             ; RAM entry point 40 ($28)
     jsr _852b
     tax
     tya
@@ -1234,8 +1240,8 @@ _87db:             ; RAM entry point 44
     bne _87f4
     php
     sei
-    jsr _8b9d
-    jsr _8b87
+    jsr set_modem_mode_and_data_word    ; 8b9d
+    jsr enable_modem_rx                 ; 8b87
     lda #$00
     sta $058c
     sta $058d
@@ -1753,6 +1759,7 @@ _8b7a:
     lda #$13        ; Disable DUART channel B receiver
     jmp _8bfd       ; OSWORD &81
 
+enable_modem_rx:
 _8b87:
     lda #$12                    ; OSWORD &81 $12 (enable DUART channel B rx)
     jsr [$3300 + _3354 - _3300]
@@ -1762,13 +1769,14 @@ _8b87:
     jsr _90f1       ; ($4f9+X)=$f4 ($501+X)=$87 - see _90f1
     ldx #$03
     jsr _90ff
-    jmp _8bef
+    jmp enable_modem_interrupts ; 8bef
 
+set_modem_mode_and_data_word:
 _8b9d:
-    lda #$1f                    ; OSWORD &81 $1f
+    lda #$1f                    ; OSWORD &81 $1f (Set modem operating mode)
     ldx #$00
     jsr [$3300 + _3354 - _3300]
-    lda #$20                    ; OSWORD &81 $20
+    lda #$20                    ; OSWORD &81 $20 (Set modem data word configuration)
     ldx #$1c
     jmp [$3300 + _3354 - _3300]
 
@@ -1817,8 +1825,9 @@ _8bea:
     sec
     rts
 
+enable_modem_interrupts:
 _8bef:
-    lda #$1b                    ; OSWORD &81 $1b
+    lda #$1b                    ; OSWORD &81 $1b (Enable modem interrupts)
     ldx #$02
     jmp [$3300 + _3354 - _3300]
 
@@ -2074,7 +2083,7 @@ _8f64:
     ldx #$06
     jsr _90ff
     ldx #$81
-    jsr _901c
+    jsr config_centronics_interrupts    ; 901c
     plp
 _8f8c:
     lda $04e3
@@ -2115,8 +2124,8 @@ _8fae:             ; RAM entry point 49
     sta $44         ; $43,$44=$0a00 $45,$46=$0a00
     sta $46
     ldx #$02
-    jsr _901c
-    jsr _9017
+    jsr config_centronics_interrupts    ; 901c
+    jsr read_centronics_status          ; 9017
     ldy #$01
     sty $04dd
     ldy #$0a
@@ -2127,9 +2136,9 @@ _8fae:             ; RAM entry point 49
     ldx #$05
     jsr _90ff
     ldx #$82
-    jsr _901c
+    jsr config_centronics_interrupts    ; 901c
     ldx #$00
-    jsr _9012
+    jsr write_byte_to_centronics        ; 9012
     jmp _8ff6
 _8ff1:
     ldy #$09
@@ -2154,14 +2163,17 @@ _8ffd:
 _9011:             ; RAM entry points 51-54
     rts
 
+write_byte_to_centronics:
 _9012:
     lda #$21                    ; OSWORD &81 $21 (Write to VIA2 port A)
     jmp [$3300 + _3354 - _3300]
 
+read_centronics_status:
 _9017:
     lda #$22                    ; OSWORD &81 $22 (Read from VIA2 port B)
     jmp _9023
 
+config_centronics_interrupts:
 _901c:
     lda #$23                    ; OSWORD &81 $23 (setup VIA2 interrupts?)
     jmp [$3300 + _3354 - _3300]

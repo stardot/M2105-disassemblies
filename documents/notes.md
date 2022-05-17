@@ -25,7 +25,7 @@ Pages 4 to 7 are written:
  * $aa55 is written to each pair of bytes in the page.
  * Zero is written to all bytes in the page.
 
-Code at 822b in IC22 are copied into RAM at $3300.
+Code at $822b in IC22 are copied into RAM at $3300.
 
 ## ROM banks
 
@@ -88,6 +88,7 @@ Y at $3411, using this format:
     <length> 0 A 0 0 X Y
 
 A is used as the command/type of the call, with a value from 0-&36.
+See https://beebwiki.mdfs.net/OSWORD_%2681 for information about OSWORD &81.
 
 The commands perform the following functions:
 
@@ -136,7 +137,8 @@ the DUART.
 
 ## DUART
 
-
+The address $340b is used to hold a parameter block for OSWORD &81, which is
+used to access the DUART.
 
 ## Speech
 

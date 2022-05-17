@@ -23,6 +23,9 @@
 
 .org $8000
 
+; ram_osword_81 in IC22
+.alias ram_osword_81 $3354
+
 ic23_start:
 _8000:
     nop
@@ -41,25 +44,25 @@ entry_from_ram:     ; RAM entry point 0 ($93 global)
     stx $2d
     lda #$ef
     ldy #$8a
-    ldx #$1d
+    ldx #$1d        ; $83d1 in IC22
     jsr $3300
     ldx #$03
     stx $2d
     lda #$28
     ldy #$8a
-    ldx #$28
+    ldx #$28        ; $8455 in IC22
     jsr $3300
     ldx #$04
     stx $2d
     lda #$44
     ldy #$8b
-    ldx #$28
+    ldx #$28        ; $8455 in IC22
     jsr $3300
     ldx #$05
     stx $2d
     lda #$a1
     ldy #$8b
-    ldx #$28
+    ldx #$28        ; $8455 in IC22
     jsr $3300
     jsr _8a88
     lda #$80
@@ -94,18 +97,18 @@ _8079:              ; Unused?
     ldx $3412
     rts
 
-_807d:              ; RAM entry point 7
-    lda #$19
-    jsr $3354
+_807d:                  ; RAM entry point 7
+    lda #$19            ; Read modem status
+    jsr ram_osword_81
     php
     sei
     ldx #$07
     stx $2d
     ldx #$1b
     jsr $3300
-    lda #$1b
+    lda #$1b            ; Enable modem interrupts
     ldx #$10
-    jsr $3354
+    jsr ram_osword_81
     plp
     rts
 
@@ -213,7 +216,7 @@ _812d:
     tax
 _8134:
     stx $2d
-    ldx #$01
+    ldx #$01        ; $a4c9 in IC22
     jmp $3300
 
 _813b:          ; ?<
@@ -5780,20 +5783,20 @@ _aa5c:
 _aa66:
     lda #$34
     clc
-    adc $3444
+    adc $3444       ; Can be 0, 1, 2
     pha
     ldx #$60
-    jsr $3354
+    jsr ram_osword_81   ; OSWORD &81, &34-&36
 
 _aa72:              ; ?<
     lda #$79        ; Keyboard scan
-    ldx #$a6
+    ldx #$a6        ; for &26 (9)
     jsr OSBYTE
     txa
-    bmi _aa72       ; Until key pressed
-    pla
+    bmi _aa72       ; Loop if key pressed (x < 0 if key is pressed)
+    pla             ; $34-$36
     ldx #$70
-    jmp $3354       ; >?
+    jmp ram_osword_81   ; OSWORD &81, &34-&36
 
 _aa82:
     ldy $0797
@@ -5872,37 +5875,37 @@ _aaef:
     sty $0205
     plp
     jsr _ab30
-    lda #$00
-    jsr $3354
-    lda #$02
-    jsr $3354
-    lda #$0c
+    lda #$00                ; Enable serial transmitter
+    jsr ram_osword_81
+    lda #$02                ; Enable serial receiver
+    jsr ram_osword_81
+    lda #$0c                ; Enable RS423 interrupts
     ldx #$02
-    jsr $3354
-    lda #$0e
+    jsr ram_osword_81
+    lda #$0e                ; Set RS423 data word configuration
     ldx $37e9
-    jsr $3354
+    jsr ram_osword_81
     ldx $37e7
-    lda #$07
+    lda #$07                ; Set RS423 baud receive rate
     jsr OSBYTE
     ldx $37e8
-    lda #$08
+    lda #$08                ; Set RS423 baud transmit rate
     jsr OSBYTE
-    lda #$08
+    lda #$08                ; Write RS423 handshake
     ldx #$05
-    jsr $3354
+    jsr ram_osword_81
     rts
 _ab30:
-    lda #$04
-    jsr $3354
-    lda #$05
-    jsr $3354
-    lda #$08
+    lda #$04                ; Reset serial transmitter
+    jsr ram_osword_81
+    lda #$05                ; Reset serial receiver
+    jsr ram_osword_81
+    lda #$08                ; Write RS423 handshake
     ldx #$85
-    jmp $3354
+    jmp ram_osword_81
 _ab41:
     pha
-    lda #$07
+    lda #$07                ; Bell
     jsr OSWRCH
     pla
     rts
@@ -6316,12 +6319,12 @@ _ae1a:
     ldx $37de,y
     lda $37e2,y
     pha
-    lda #$1f
-    jsr $3354
+    lda #$1f            ; Set modem operating mode
+    jsr ram_osword_81
     pla
     tax
-    lda #$20
-    jsr $3354
+    lda #$20            ; Set modem data word configuration
+    jsr ram_osword_81
     jmp _b7b4
 
 _ae33:
@@ -6776,8 +6779,8 @@ _b1a1:
     rts
 
 _b1b1:
-    lda #$27
-    jmp $3354
+    lda #$27            ; Seize telephone line
+    jmp ram_osword_81
 
 _b1b6:       ; RAM entry point 20
     jsr _ba7a
@@ -6997,10 +7000,10 @@ _b337:
     jmp _b7cf
 
 _b33f:
-    lda #$0b
+    lda #$0b            ; Write to serial
     ldx $0796
     beq _b355
-    jmp $3354
+    jmp ram_osword_81
 
 _b349:
     ldy $37db
@@ -7012,8 +7015,8 @@ _b355:
     rts
 
 _b356:
-    lda #$07
-    jsr $3354
+    lda #$07            ; Read serial handshake
+    jsr ram_osword_81
     lda $340e
     and #$01
     clc
@@ -7031,8 +7034,8 @@ _b36c:
     rts
 
 _b36d:
-    lda #$0a
-    jsr $3354
+    lda #$0a            ; Read serial status
+    jsr ram_osword_81
     lda $340e
     clc
     and #$04
@@ -7105,8 +7108,8 @@ _b3db:
     sec
     rts
 _b3eb:
-    lda #$19
-    jsr $3354
+    lda #$19            ; Read modem status
+    jsr ram_osword_81
     lda $340e
     clc
     and #$04
@@ -7642,45 +7645,45 @@ _b796:
     jmp _b78b
 
 _b79c:
-    lda #$10
-    jsr $3354
-    lda #$17
+    lda #$10            ; Enable modem transmitter
+    jsr ram_osword_81
+    lda #$17            ; Write modem handshake
     ldx #$02
-    jmp $3354
+    jmp ram_osword_81
 
 _b7a8:
-    lda #$17
+    lda #$17            ; Write modem handshake
     ldx #$82
 _b7ac:
-    jsr $3354
-    lda #$11
-    jmp $3354
+    jsr ram_osword_81
+    lda #$11            ; Disable modem transmitter
+    jmp ram_osword_81
 
 _b7b4:
-    lda #$12
-    jmp $3354
+    lda #$12            ; Enable modem receiver
+    jmp ram_osword_81
 
 _b7b9:
-    lda #$1f
+    lda #$1f            ; Set modem operating mode
     ldx #$02
-    jsr $3354
-    lda #$20
+    jsr ram_osword_81
+    lda #$20            ; Set modem data word configuration
     ldx #$98
-    jsr $3354
+    jsr ram_osword_81
     jmp _b7b4
-    lda #$27
-    jmp $3354
+    lda #$27            ; Seize telephone line
+    jmp ram_osword_81
 
 _b7cf:
     tax
-    lda #$1a
-    jmp $3354
+    lda #$1a            ; Write byte to modem transmit holding register
+    jmp ram_osword_81
 
 _b7d5:
     ldx #$ff
 _b7d7:
-    lda #$2a
-    jmp $3354
+    lda #$2a            ; Turn PSTN line monitor speaker on/off
+    jmp ram_osword_81
 
 _b7dc:
     lda #$70
@@ -8138,8 +8141,8 @@ _baf3:
 _bb01:
     jsr _baf3
     ldx #$02
-    lda #$1b
-    jmp $3354
+    lda #$1b            ; Enable modem interrupts
+    jmp ram_osword_81
 
 _bb0b:
     lda #$02
@@ -8158,8 +8161,8 @@ _bb18:
     jsr $3300
     jsr _b7a8
     ldx #$02
-    lda #$1c
-    jsr $3354
+    lda #$1c            ; Disable modem interrupts
+    jsr ram_osword_81
     ldx #$03
     stx $2d
     ldx #$1c
@@ -8405,9 +8408,9 @@ _bd35:
 _bd37:
     lda $3444
     bne _bd43
-    lda #$08
+    lda #$08                ; Write RS423 handshake
     ldx #$01
-    jsr $3354
+    jsr ram_osword_81
 _bd43:
     jsr _bcf6
     beq _bd57
@@ -8421,9 +8424,9 @@ _bd57:
     rts
 
 _bd58:
-    lda #$0f
+    lda #$0f                ; Set RS423 handshake level
     ldx #$00
-    jmp $3354
+    jmp ram_osword_81
 
 ; Via table at aa52:
 _bd5f:
@@ -8614,7 +8617,8 @@ _bec3:
 .byte $60,$60,$60,$20,$6f,$be,$a5,$12,$85,$45,$a5,$13,$85,$46,$a9,$23
 
 _bf00: ; Bytes at bf01 and bf80 provide an entry point for the ROM from RAM.
-.byte $03,$80,$9b,$80,$80,$97,$97,$97,$80,$82,$97,$9c,$9d,$a2,$a6,$a4
+.byte $03
+.byte     $80,$9b,$80,$80,$97,$97,$97,$80,$82,$97,$9c,$9d,$a2,$a6,$a4
 .byte $a4,$a6,$a7,$a7,$a9,$b1,$b0,$00,$00,$00,$00,$00,$00,$00,$00,$00
 .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
@@ -8622,6 +8626,7 @@ _bf00: ; Bytes at bf01 and bf80 provide an entry point for the ROM from RAM.
 .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+_bf80:
 .byte $01,$5f,$bd,$e0,$70,$f8,$0e,$7c,$21,$31,$14,$7a,$4a,$37,$2b,$47
 .byte $e4,$64,$da,$2f,$b5,$af,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 .byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
